@@ -1,0 +1,77 @@
+2025-06-24 09:46:51,430 - root - INFO - === Testing with Real Data ===
+2025-06-24 09:46:51,431 - root - INFO - Starting agent classification test...
+2025-06-24 09:46:51,432 - root - INFO - Loading data...
+2025-06-24 09:46:51,432 - src.credit_health_engine - INFO - Loading and validating input data...
+2025-06-24 09:46:51,432 - src.credit_health_engine - INFO - Loading credit_Agents.xlsx...
+2025-06-24 09:46:51,705 - src.credit_health_engine - INFO - Loaded 1915 rows from credit_Agents.xlsx
+2025-06-24 09:46:51,708 - src.credit_health_engine - INFO - ✅ Successfully loaded credit_Agents.xlsx with shape (1915, 7)
+2025-06-24 09:46:51,708 - src.credit_health_engine - INFO - Loading Credit_history_sales_vs_credit_sales.xlsx...
+2025-06-24 09:46:51,851 - src.credit_health_engine - ERROR - Error loading Credit_history_sales_vs_credit_sales.xlsx: Unable to convert column Account to type int64 (sheet: 0)
+2025-06-24 09:46:51,852 - src.credit_health_engine - ERROR - Failed to load or empty DataFrame: Credit_history_sales_vs_credit_sales.xlsx
+2025-06-24 09:46:51,852 - src.credit_health_engine - INFO - Loading Credit_sales_data.xlsx...
+2025-06-24 09:46:52,174 - src.credit_health_engine - INFO - Loaded 6226 rows from Credit_sales_data.xlsx
+2025-06-24 09:46:52,176 - src.credit_health_engine - INFO - ✅ Successfully loaded Credit_sales_data.xlsx with shape (6226, 4)
+2025-06-24 09:46:52,176 - src.credit_health_engine - INFO - Loading DPD.xlsx...
+2025-06-24 09:46:52,192 - src.credit_health_engine - INFO - Loaded 91 rows from DPD.xlsx
+2025-06-24 09:46:52,194 - src.credit_health_engine - INFO - ✅ Successfully loaded DPD.xlsx with shape (91, 7)
+2025-06-24 09:46:52,194 - src.credit_health_engine - INFO - Loading Region_contact.xlsx...
+2025-06-24 09:46:52,205 - src.credit_health_engine - INFO - Loaded 9 rows from Region_contact.xlsx
+2025-06-24 09:46:52,206 - src.credit_health_engine - INFO - ✅ Successfully loaded Region_contact.xlsx with shape (9, 3)
+2025-06-24 09:46:52,207 - src.credit_health_engine - INFO - Loading sales_data.xlsx...
+2025-06-24 09:46:53,069 - src.credit_health_engine - INFO - Loaded 13913 rows from sales_data.xlsx
+2025-06-24 09:46:53,070 - src.credit_health_engine - INFO - ✅ Successfully loaded sales_data.xlsx with shape (13913, 13)
+2025-06-24 09:46:53,070 - src.credit_health_engine - INFO - 
+==================================================
+2025-06-24 09:46:53,070 - src.credit_health_engine - INFO - DATA LOADING SUMMARY
+2025-06-24 09:46:53,070 - src.credit_health_engine - INFO - ==================================================
+2025-06-24 09:46:53,070 - src.credit_health_engine - INFO - 
+✅ Successfully loaded files:
+2025-06-24 09:46:53,073 - src.credit_health_engine - INFO -   - Credit_sales_data.xlsx: 6226 rows
+2025-06-24 09:46:53,073 - src.credit_health_engine - INFO -   - DPD.xlsx: 91 rows
+2025-06-24 09:46:53,073 - src.credit_health_engine - INFO -   - Region_contact.xlsx: 9 rows
+2025-06-24 09:46:53,073 - src.credit_health_engine - INFO -   - credit_Agents.xlsx: 1915 rows
+2025-06-24 09:46:53,073 - src.credit_health_engine - INFO -   - sales_data.xlsx: 13913 rows
+2025-06-24 09:46:53,074 - src.credit_health_engine - ERROR - 
+❌ Files with validation errors:
+2025-06-24 09:46:53,074 - src.credit_health_engine - ERROR -   - Credit_history_sales_vs_credit_sales.xlsx
+2025-06-24 09:46:53,074 - src.credit_health_engine - ERROR - 
+❌ Some files failed to load or validate. Check logs for details.
+2025-06-24 09:46:53,074 - src.credit_health_engine - INFO - ==================================================
+
+2025-06-24 09:46:53,074 - root - ERROR - Failed to load data
+2025-06-24 09:46:53,075 - root - INFO - 
+=== Testing with Sample Data ===
+2025-06-24 09:46:53,075 - root - INFO - 
+Testing AgentClassifier with sample data...
+2025-06-24 09:46:53,076 - root - INFO - 
+Sample 1:
+2025-06-24 09:46:53,076 - root - INFO - Features: {'credit_utilization': 0.9, 'repayment_score': 95, 'gmv_trend_6m': 0.2, 'credit_gmv_share': 0.8, 'delinquent_30p': nan}
+2025-06-24 09:46:53,076 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-06-24 09:46:53,076 - root - INFO - Recommended Action: Monitor / intervene
+2025-06-24 09:46:53,076 - root - INFO - 
+Sample 2:
+2025-06-24 09:46:53,077 - root - INFO - Features: {'credit_utilization': 0.6, 'repayment_score': 75, 'gmv_trend_6m': -0.1, 'credit_gmv_share': 0.5, 'delinquent_30p': True}
+2025-06-24 09:46:53,077 - root - INFO - Classification: Tier P1 - Usage decline or slight delays
+2025-06-24 09:46:53,077 - root - INFO - Recommended Action: Follow-up
+2025-06-24 09:46:53,077 - root - INFO - 
+Sample 3:
+2025-06-24 09:46:53,077 - root - INFO - Features: {'credit_utilization': 0.95, 'repayment_score': 60, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.9, 'delinquent_30p': True}
+2025-06-24 09:46:53,077 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-06-24 09:46:53,077 - root - INFO - Recommended Action: Monitor / intervene
+2025-06-24 09:46:53,078 - root - INFO - 
+Sample 4:
+2025-06-24 09:46:53,078 - root - INFO - Features: {'credit_utilization': 0.3, 'repayment_score': 85, 'gmv_trend_6m': -0.3, 'credit_gmv_share': 0.4, 'delinquent_30p': nan}
+2025-06-24 09:46:53,078 - root - INFO - Classification: Tier P1 - Usage decline or slight delays
+2025-06-24 09:46:53,078 - root - INFO - Recommended Action: Follow-up
+2025-06-24 09:46:53,078 - root - INFO - 
+Sample 5:
+2025-06-24 09:46:53,078 - root - INFO - Features: {'credit_utilization': 0.05, 'repayment_score': 100, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.05, 'delinquent_30p': nan}
+2025-06-24 09:46:53,078 - root - INFO - Classification: Tier P4 - Credit available but not used
+2025-06-24 09:46:53,078 - root - INFO - Recommended Action: Educate / activate
+2025-06-24 09:46:53,079 - root - INFO - 
+Sample 6:
+2025-06-24 09:46:53,079 - root - INFO - Features: {'credit_utilization': 0.0, 'repayment_score': 0, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.0, 'delinquent_30p': nan}
+2025-06-24 09:46:53,079 - root - INFO - Classification: Tier P5 - No use or repayment for a long time
+2025-06-24 09:46:53,079 - root - INFO - Recommended Action: Churned — deprioritize
+2025-06-24 09:46:53,079 - root - ERROR - 
+❌ Some tests failed. Check the logs for details.

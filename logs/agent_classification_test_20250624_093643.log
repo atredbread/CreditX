@@ -1,0 +1,53 @@
+2025-06-24 09:36:43,209 - root - INFO - === Testing with Real Data ===
+2025-06-24 09:36:43,209 - root - INFO - Starting agent classification test...
+2025-06-24 09:36:43,213 - root - INFO - Loading data...
+2025-06-24 09:36:43,213 - src.credit_health_engine - INFO - Loading and validating input data...
+2025-06-24 09:36:43,462 - src.credit_health_engine - ERROR - Missing required columns in credit_Agents.xlsx: Status, Region
+2025-06-24 09:36:43,463 - src.credit_health_engine - INFO - Available columns: Bzid, Phone, Credit Line Setup Co, Approval Amount, Credit Limit, Credit Line Balance, Unnamed: 6
+2025-06-24 09:36:43,592 - src.credit_health_engine - ERROR - Missing required columns in Credit_history_sales_vs_credit_sales.xlsx: Bzid, MonthYear, TotalGMV, CreditGMV, CreditRatio
+2025-06-24 09:36:43,592 - src.credit_health_engine - INFO - Available columns: Account, Jan Total GMV - Year25, Jan Credit Gmv, % Jan Total GMV - Year25 consumption, Feb Total GMV - Year25, Feb Credit Gmv, % Feb Total GMV - Year25 consumption, Mar Total GMV - Year25, Mar Credit Gmv, % Mar Total GMV - Year25 consumption, Apr Total GMV - Year25, Apr Credit Gmv, % Apr Total GMV - Year25 consumption, May Total GMV - Year25, May Credit Gmv, % May Total GMV - Year25 consumption, June Total GMV - Year25, JuneCredit Gmv, % May Total GMV - Year25 consumption.1
+2025-06-24 09:36:43,910 - src.credit_health_engine - ERROR - Missing required columns in Credit_sales_data.xlsx: Bzid, TransactionDate, Amount, Status, Region
+2025-06-24 09:36:43,910 - src.credit_health_engine - INFO - Available columns: DATE, account, GMV, tin
+2025-06-24 09:36:43,918 - src.credit_health_engine - ERROR - Missing required columns in Region_contact.xlsx: ManagerEmail, ManagerName, RO, RM
+2025-06-24 09:36:43,918 - src.credit_health_engine - INFO - Available columns: Region, Manager, Name
+2025-06-24 09:36:43,931 - src.credit_health_engine - INFO - Successfully loaded DPD.xlsx with shape (91, 7)
+2025-06-24 09:36:44,838 - src.credit_health_engine - ERROR - Missing required columns in sales_data.xlsx: Bzid, SaleDate, TotalSales, PaymentType, Status
+2025-06-24 09:36:44,838 - src.credit_health_engine - INFO - Available columns: DATE(a.creationtime), account, organizationname, status, TotalSeats, GMV, AgentCommission(Exe GDS), city, State, Region, Check, Ro Name, RM Name
+2025-06-24 09:36:44,839 - src.credit_health_engine - ERROR - Validation failed for files: credit_Agents.xlsx, Credit_history_sales_vs_credit_sales.xlsx, Credit_sales_data.xlsx, Region_contact.xlsx, sales_data.xlsx
+2025-06-24 09:36:44,839 - root - ERROR - Failed to load data
+2025-06-24 09:36:44,839 - root - INFO - 
+=== Testing with Sample Data ===
+2025-06-24 09:36:44,839 - root - INFO - 
+Testing AgentClassifier with sample data...
+2025-06-24 09:36:44,840 - root - INFO - 
+Sample 1:
+2025-06-24 09:36:44,841 - root - INFO - Features: {'credit_utilization': 0.9, 'repayment_score': 95, 'gmv_trend_6m': 0.2, 'credit_gmv_share': 0.8, 'delinquent_30p': nan}
+2025-06-24 09:36:44,841 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-06-24 09:36:44,841 - root - INFO - Recommended Action: Monitor / intervene
+2025-06-24 09:36:44,842 - root - INFO - 
+Sample 2:
+2025-06-24 09:36:44,843 - root - INFO - Features: {'credit_utilization': 0.6, 'repayment_score': 75, 'gmv_trend_6m': -0.1, 'credit_gmv_share': 0.5, 'delinquent_30p': True}
+2025-06-24 09:36:44,843 - root - INFO - Classification: Tier P1 - Usage decline or slight delays
+2025-06-24 09:36:44,843 - root - INFO - Recommended Action: Follow-up
+2025-06-24 09:36:44,843 - root - INFO - 
+Sample 3:
+2025-06-24 09:36:44,843 - root - INFO - Features: {'credit_utilization': 0.95, 'repayment_score': 60, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.9, 'delinquent_30p': True}
+2025-06-24 09:36:44,843 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-06-24 09:36:44,844 - root - INFO - Recommended Action: Monitor / intervene
+2025-06-24 09:36:44,845 - root - INFO - 
+Sample 4:
+2025-06-24 09:36:44,845 - root - INFO - Features: {'credit_utilization': 0.3, 'repayment_score': 85, 'gmv_trend_6m': -0.3, 'credit_gmv_share': 0.4, 'delinquent_30p': nan}
+2025-06-24 09:36:44,845 - root - INFO - Classification: Tier P1 - Usage decline or slight delays
+2025-06-24 09:36:44,845 - root - INFO - Recommended Action: Follow-up
+2025-06-24 09:36:44,845 - root - INFO - 
+Sample 5:
+2025-06-24 09:36:44,845 - root - INFO - Features: {'credit_utilization': 0.05, 'repayment_score': 100, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.05, 'delinquent_30p': nan}
+2025-06-24 09:36:44,845 - root - INFO - Classification: Tier P4 - Credit available but not used
+2025-06-24 09:36:44,845 - root - INFO - Recommended Action: Educate / activate
+2025-06-24 09:36:44,846 - root - INFO - 
+Sample 6:
+2025-06-24 09:36:44,846 - root - INFO - Features: {'credit_utilization': 0.0, 'repayment_score': 0, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.0, 'delinquent_30p': nan}
+2025-06-24 09:36:44,846 - root - INFO - Classification: Tier P5 - No use or repayment for a long time
+2025-06-24 09:36:44,846 - root - INFO - Recommended Action: Churned — deprioritize
+2025-06-24 09:36:44,846 - root - ERROR - 
+❌ Some tests failed. Check the logs for details.
