@@ -1,13 +1,11 @@
-# Credit Sales Analyzer - Algorithms and Calculations
+   # Credit Sales Analyzer - Algorithms and Calculations
 
-## Table of Contents
-1. [Data Loading and Preprocessing](#data-loading-and-preprocessing)
-2. [Monthly Metrics Calculation](#monthly-metrics-calculation)
-3. [Aggregate Metrics Calculation](#aggregate-metrics-calculation)
-4. [Credit Health Score](#credit-health-score)
-5. [Risk Indicators](#risk-indicators)
-6. [Agent Clustering](#agent-clustering)
-7. [Trend Analysis](#trend-analysis)
+   ## Table of Contents
+   1. [Data Loading and Preprocessing](#data-loading-and-preprocessing)
+   2. [Monthly Metrics Calculation](#monthly-metrics-calculation)
+   3. [Aggregate Metrics Calculation](#aggregate-metrics-calculation)
+   4. [Credit Health Score](#credit-health-score)
+   5. [Risk Indicators](#risk-indicators)
 
 ## Data Loading and Preprocessing
 
@@ -91,9 +89,9 @@ credit_ratio_std = std(monthly_ratios, ddof=1)  # Sample standard deviation
 ### Final Score
 ```python
 credit_health_score = (
-    score_credit_ratio * 0.4 +
-    score_volatility * 0.3 +
-    score_gmv * 0.3
+   score_credit_ratio * 0.4 +
+   score_volatility * 0.3 +
+   score_gmv * 0.3
 ) * 100  # Scale to 0-100
 ```
 
@@ -149,10 +147,10 @@ dormant_agent = zero_credit_months >= DORMANT_MONTHS  # 3 months
 ### Peer Comparison
 ```python
 peer_avg = metrics_df.agg({
-    'avg_monthly_credit_ratio': 'mean',
-    'total_gmv': 'mean',
-    'total_credit_gmv': 'mean',
-    'credit_health_score': 'mean'
+   'avg_monthly_credit_ratio': 'mean',
+   'total_gmv': 'mean',
+   'total_credit_gmv': 'mean',
+   'credit_health_score': 'mean'
 })
 ```
 
