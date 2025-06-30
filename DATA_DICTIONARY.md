@@ -1,122 +1,76 @@
-# Credit Risk Data Dictionary
+# Data Dictionary
 
-This document provides detailed documentation of all data elements used in the credit risk analysis system, including field descriptions, data types, relationships, and business rules.
-
-## Table of Contents
-1. [credit_Agents.xlsx](#credit_agentsxlsx)
-2. [Credit_history_sales_vs_credit_sales.xlsx](#credit_history_sales_vs_credit_salesxlsx)
-3. [Credit_sales_data.xlsx](#credit_sales_dataxlsx)
-4. [Region_contact.xlsx](#region_contactxlsx)
-5. [DPD.xlsx](#dpsxlsx)
-6. [sales_data.xlsx](#sales_dataxlsx)
-7. [repayment_report.csv](#repayment_reportcsv)
-
-## Data Relationships
-
-```mermaid
-erDiagram
-    credit_Agents ||--o{ DPD : "1:1"
-    credit_Agents ||--o{ Credit_sales_data : "1:many"
-    credit_Agents ||--o{ sales_data : "1:many"
-    credit_Agents ||--o{ repayment_report : "1:many"
-    Region_contact ||--o{ sales_data : "1:many"
-```
+This document describes the structure and content of all input datasets.
 
 ## credit_Agents.xlsx
 
-**Description**: Master list of onboarded agents with credit information including credit limits, balances, and approval details. This is the primary reference for agent credit facilities.
+**Description**: Master list of onboarded agents with credit information
 
-**File Information**:
-- **Number of Rows**: 1,599
-- **Update Frequency**: Daily batch, real-time for credit limit changes
-- **Primary Key**: `Bzid`
-- **Business Owner**: Credit Risk Team
+**Number of Rows**: 1,915
 
-### Data Quality Rules
-- `Bzid` must be unique and non-null (8 digits)
-- `Credit Limit` ≤ `Approval Amount`
-- `Credit Line Balance` ≤ `Credit Limit`
-- `Phone` must be 10 digits, no special characters
-- `Status` must be 'A' (Active) or 'D' (Deactivated)
-- `Credit Line Setup Co` must be ≤ current date
+**Key Columns**: `Bzid`, `Phone`
 
 ### Relationships
-- **DPD.xlsx**: One-to-one on `Bzid`
-- **Credit_sales_data.xlsx**: One-to-many on `Bzid`
-- **sales_data.xlsx**: One-to-many on `Bzid`
-- **repayment_report.csv**: One-to-many on `Bzid`
 
-### Schema
-| Column | Data Type | Description | Validation Rules |
-|--------|-----------|-------------|------------------|
-| `Bzid` | int64 | Unique business ID | Required, 8 digits, unique |
-| `Phone` | int64 | Agent's contact number | 10 digits, no special chars |
-| `Credit Line Setup Co` | datetime | When credit line was established | ≤ current date |
-| `Approval Amount` | int64 | Maximum credit approved | ≥ 0, ≥ Credit Limit |
-| `Credit Limit` | int64 | Current credit limit | ≤ Approval Amount, ≥ 0 |
-| `Credit Line Balance` | float64 | Current outstanding balance | ≤ Credit Limit, ≥ 0 |
-| `Status` | object | Account status | 'A' (Active) or 'D' (Deactivated) |
+- **Related to**: DPD.xlsx  
+  **On**: Bzid, Phone  
+  **Type**: one-to-one
+
+### Columns
+
+| Column | Data Type | Sample Values | Description |
+|--------|-----------|----------------|-------------|
+| `Bzid` | int64 | 23058821, 21425838, 26840517 |  |
+| `Phone` | int64 | 9966119584, 8722348686, 7411103360 |  |
+| `Credit Line Setup Co` | object | 19-5-2023, 9:47 AM, 18-5-2023, 5:29 PM, 19-5-2023, 1:54 PM |  |
+| `Approval Amount` | int64 | 10000, 37000, 166000 |  |
+| `Credit Limit` | int64 | 10000, 37000, 166000 |  |
+| `Credit Line Balance` | float64 | 10000.0, 37000.0, 140576.14 |  |
+| `Unnamed: 6` | object | D, D, D |  |
 
 ---
 
 ## Credit_history_sales_vs_credit_sales.xlsx
 
-**Description**: Tracks monthly sales performance including both total GMV and credit-based GMV for each agent. Used for trend analysis and credit limit reviews.
+**Description**: Historical sales and credit sales data
 
-**File Information**:
-- **Number of Rows**: 1,416  
-- **Update Frequency**: Monthly  
-- **Primary Key**: `Account`  
-- **Business Owner**: Business Intelligence
+**Number of Rows**: 1,416
 
-### Data Quality Rules
-- All GMV values must be ≥ 0
-- Credit GMV ≤ Total GMV for each month
-- Monthly consumption % = Credit GMV / Total GMV
-- No future months should have data
-- Account must exist in credit_Agents
+**Key Columns**: `Account`
 
-### Key Metrics
-- **Total GMV**: Gross Merchandise Value (all sales)
-- **Credit GMV**: Sales made on credit
-- **Consumption %**: Credit GMV / Total GMV
+### Columns
 
-### Schema
-| Column | Data Type | Description | Validation |
-|--------|-----------|-------------|------------|
-| `Account` | int64 | Agent identifier | Must exist in credit_Agents |
-| `*_Total GMV` | float64 | Monthly total GMV | ≥ 0 |
-| `*_Credit Gmv` | float64 | Monthly credit GMV | ≤ Total GMV |
-| `%*_Consumption` | float | Credit GMV / Total GMV | 0-1 range |
-
-*Where * represents month abbreviation (e.g., Jan, Feb, Mar)
+| Column | Data Type | Sample Values | Description |
+|--------|-----------|----------------|-------------|
+| `Account` | int64 | 25125208, 28499610, 13810786 |  |
+| `Jan Total GMV - Year25` | int64 | 458674, 226523, 319249 |  |
+| `Jan Credit Gmv` | int64 | 322444, 0, 0 |  |
+| `% Jan Total GMV - Year25 consumption` | float64 | 0.703, 0.0, 0.0 |  |
+| `Feb Total GMV - Year25` | int64 | 388310, 228508, 236825 |  |
+| `Feb Credit Gmv` | int64 | 147399, 0, 0 |  |
+| `% Feb Total GMV - Year25 consumption` | float64 | 0.3796, 0.0, 0.0 |  |
+| `Mar Total GMV - Year25` | int64 | 223093, 89740, 108210 |  |
+| `Mar Credit Gmv` | int64 | 64794, 0, 0 |  |
+| `% Mar Total GMV - Year25 consumption` | float64 | 0.2904, 0.0, 0.0 |  |
+| `Apr Total GMV - Year25` | int64 | 507822, 520917, 351687 |  |
+| `Apr Credit Gmv` | int64 | 222337, 0, 0 |  |
+| `% Apr Total GMV - Year25 consumption` | float64 | 0.4378, 0.0, 0.0 |  |
+| `May Total GMV - Year25` | int64 | 341265, 249222, 239615 |  |
+| `May Credit Gmv` | int64 | 121208, 0, 0 |  |
+| `% May Total GMV - Year25 consumption` | float64 | 0.3552, 0.0, 0.0 |  |
+| `June Total GMV - Year25` | float64 | 324456.6, 63996.15, 98008.61 |  |
+| `JuneCredit Gmv` | float64 | 118592.2, 0.0, 0.0 |  |
+| `% May Total GMV - Year25 consumption.1` | float64 | 0.3655, 0.0, 0.0 |  |
 
 ---
 
 ## Credit_sales_data.xlsx
 
-**Description**: Detailed transaction-level data for all credit sales, used for reconciliation and analysis of credit utilization patterns.
+**Description**: Monthly credit sales transactions
 
-**Number of Rows**: 6,226  
-**Update Frequency**: Daily  
-**Primary Key**: Composite (`account`, `DATE`, `tin`)  
-**Business Owner**: Finance Operations
+**Number of Rows**: 6,226
 
-### Data Quality Rules
-- `GMV` must be > 0
-- `DATE` cannot be in future
-- `tin` must be valid TIN format (8 alphanumeric)
-- `account` must exist in credit_Agents
-
-### Transaction Types
-- **Regular**: Standard credit sales
-- **Adjustment**: Manual adjustments
-- **Reversal**: Transaction reversals
-- **Write-off**: Bad debt write-offs
-
-### Data Retention
-- Current FY + 7 years (statutory requirement)
-- Archived monthly after FY closure
+**Key Columns**: `account`, `DATE`
 
 ### Relationships
 
@@ -137,24 +91,11 @@ erDiagram
 
 ## Region_contact.xlsx
 
-**Description**: Defines geographical regions and their respective sales/relationship managers. Used for regional reporting and escalation paths.
+**Description**: Mapping of regions to contact persons
 
 **Number of Rows**: 9
-**Update Frequency**: As needed
-**Primary Key**: `Region`
-**Business Owner**: Sales Leadership
 
-### Data Quality Rules
-- `Region` must be unique
-- `Manager` must be valid email
-- `Name` must be title case
-
-### Region Coverage
-- North India
-- South India
-- East India
-- West India
-- Central India
+**Key Columns**: `Region`
 
 ### Columns
 
@@ -168,61 +109,33 @@ erDiagram
 
 ## DPD.xlsx
 
-**Description**: Tracks Days Past Due (DPD) for credit accounts, indicating payment delays. Used for delinquency monitoring and risk assessment.
+**Description**: Days Past Due information for credit accounts
 
 **Number of Rows**: 91
-**Update Frequency**: Daily
-**Primary Key**: `Bzid`
-**Business Owner**: Collections Team
 
-### Data Quality Rules
-- `Dpd` must be non-negative integer
-- `Pos` must be ≥ 0
-- `Bzid` must exist in credit_Agents
-
-### DPD Buckets
-- 0: Current
-- 1-29: Early Delinquency
-- 30-59: Mild Delinquency
-- 60-89: Severe Delinquency
-- 90+: Default
+**Key Columns**: `Bzid`, `Phone`
 
 ### Columns
 
 | Column | Data Type | Sample Values | Description |
 |--------|-----------|----------------|-------------|
-| Field | Type | Sample Values | Description | Business Rules |
-|-------|------|---------------|-------------|----------------|
-| `Anchor` | string | REDBUS | Business unit/partner | Must match predefined anchor list |
-| `Phone` | int64 | 9885777379 | Agent contact number | Must match credit_Agents.Phone |
-| `Bzid` | int64 | 24939241 | Agent business ID | Foreign key to credit_Agents |
-| `Username` | string | RAHAMTHULLA SHAIK | Agent's full name | Title case, No special chars |
-| `Business Name` | string | SRT travels - Rayachoti | Registered business name | Max 100 chars |
-| `Dpd` | int64 | 3, 2 | Days Past Due | 0-999, 90+ = Default |
-| `Pos` | float64 | 5379.30 | Principal Outstanding amount | ≥ 0, 2 decimal places |
+| `Anchor` | object | REDBUS, REDBUS, REDBUS |  |
+| `Phone` | int64 | 9885777379, 9944190111, 9820762252 |  |
+| `Bzid` | int64 | 24939241, 13910540, 45966733 |  |
+| `Username` | object | RAHAMTHULLA SHAIK, MANICKAM RAJESH, SHABBIR M KOTHARI |  |
+| `Business Name` | object | SRT travels - Rayachoti, TRAVEL ZONE TOURS AND TRAVELS, KOTHARI SALES CORPORATION |  |
+| `Dpd` | int64 | 3, 3, 2 |  |
+| `Pos` | float64 | 5379.3, 26004.09, 5778.38 |  |
 
 ---
 
 ## sales_data.xlsx
 
-**Description**: Comprehensive transaction data including booking details, GMV, and agent commissions. Used for sales analysis and performance tracking.
+**Description**: Complete sales transaction data
 
 **Number of Rows**: 13,913
-**Update Frequency**: Hourly
-**Primary Key**: Composite (`account`, `DATE(a.creationtime)`, `organizationname`)
-**Business Owner**: Sales Operations
 
-### Data Quality Rules
-- `GMV` must be ≥ 0
-- `TotalSeats` must be ≥ 1
-- `status` must be valid booking status
-- `account` must exist in credit_Agents
-
-### Status Values
-- BOOKED: Confirmed booking
-- CANCELLED: Booking cancelled
-- NO_SHOW: Customer didn't show
-- COMPLETED: Service delivered
+**Key Columns**: `account`, `DATE(a.creationtime)`
 
 ### Columns
 

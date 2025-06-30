@@ -96,11 +96,11 @@
 ```
 Credit Utilization = (Credit Line Balance / Credit Limit) * 100
 ```
-**Range**: 0-100% (Lower is better)
+**Range**: 0-100% (Higher is better)
 **Risk Levels**:
-- <30%: Low risk
-- 30-70%: Medium risk
-- >70%: High risk
+- <30%: high risk
+- 30-70%: medium risk
+- >70%: low risk
 
 ### 2.2 Delinquency Status
 Based on DPD (Days Past Due):

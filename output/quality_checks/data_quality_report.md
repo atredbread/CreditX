@@ -14,7 +14,7 @@ This report provides an overview of data quality across all input datasets.
 
 ## credit_Agents.xlsx <a id='credit_agentsxlsx'></a>
 
-**Shape:** (1599, 7) (rows × columns)
+**Shape:** (1915, 7) (rows × columns)
 
 ✅ No missing values found.
 
@@ -22,11 +22,11 @@ This report provides an overview of data quality across all input datasets.
 
 | Column | Mean | Min | 25% | 50% | 75% | Max |
 |--------|-----:|----:|---:|---:|---:|----:|
-| `Bzid` | 24938342.28 | 10010576.00 | 20485062.00 | 24301776.00 | 27642163.00 | 49912503.00 |
-| `Phone` | 9226814710.67 | 6005188916.00 | 8984493197.50 | 9448394267.00 | 9845321933.00 | 9998877014.00 |
-| `Approval Amount` | 24673.55 | 10000.00 | 10000.00 | 10000.00 | 27000.00 | 234000.00 |
-| `Credit Limit` | 23441.40 | 9500.00 | 10000.00 | 10000.00 | 26000.00 | 192000.00 |
-| `Credit Line Balance` | 20222.06 | 23.32 | 10000.00 | 10000.00 | 23000.00 | 155768.20 |
+| `Bzid` | 24915690.96 | 10010576.00 | 20689935.50 | 24238807.00 | 27493304.00 | 49912503.00 |
+| `Phone` | 9201911831.75 | 6005188916.00 | 8889679749.50 | 9445336786.00 | 9844655954.00 | 9998877014.00 |
+| `Approval Amount` | 24773.89 | 10000.00 | 10000.00 | 10000.00 | 27000.00 | 234000.00 |
+| `Credit Limit` | 23422.77 | 9500.00 | 10000.00 | 10000.00 | 26000.00 | 192000.00 |
+| `Credit Line Balance` | 20247.25 | 13.67 | 10000.00 | 10000.00 | 22406.12 | 154344.85 |
 
 ### Missing Data Visualization
 
@@ -36,66 +36,30 @@ This report provides an overview of data quality across all input datasets.
 
 ## Credit_history_sales_vs_credit_sales.xlsx <a id='credit_history_sales_vs_credit_salesxlsx'></a>
 
-**Shape:** (1416, 55) (rows × columns)
+**Shape:** (1416, 19) (rows × columns)
 
 ### Missing Values
 
 | Column | Missing Count | Missing % |
 |--------|--------------:|----------:|
-| `%Mar Consumtion` | 195 | 13.77% |
-| `%Feb consumtion` | 184 | 12.99% |
-| `%May Total GMV - Year24 Consumption` | 174 | 12.29% |
-| `%Apr Consumtion` | 170 | 12.01% |
-| `%Jan Consumption` | 169 | 11.94% |
-| `Jan Credit Gmv` | 3 | 0.21% |
 | `Account` | 3 | 0.21% |
-| `Feb Credit Gmv` | 3 | 0.21% |
-| `Feb Total GMV - Year24` | 3 | 0.21% |
-| `Jan Total GMV - Year24 Sales GMV` | 3 | 0.21% |
-| `Mar Credit Gmv` | 3 | 0.21% |
-| `Apr Total GMV - Year24` | 3 | 0.21% |
-| `Apr Credit Gmv` | 3 | 0.21% |
-| `May Total GMV - Year24` | 3 | 0.21% |
-| `Mar Total GMV - Year24` | 3 | 0.21% |
-| `May Credit Gmv` | 3 | 0.21% |
-| `June Total GMV - Year24` | 3 | 0.21% |
-| `June Credit Gmv` | 3 | 0.21% |
-| `%Jun Total GMV - Year24 consumtion` | 3 | 0.21% |
-| `May Total GMV - Year25` | 3 | 0.21% |
-| `May Credit Gmv.1` | 3 | 0.21% |
-| `% May Total GMV - Year25 consumption.1` | 3 | 0.21% |
-| `JuneCredit Gmv` | 3 | 0.21% |
 | `June Total GMV - Year25` | 3 | 0.21% |
 | `% May Total GMV - Year25 consumption` | 3 | 0.21% |
-| `July Credit Gmv` | 2 | 0.14% |
-| `July Total GMV - Year24` | 2 | 0.14% |
-| `Aug Total GMV - Year24` | 2 | 0.14% |
-| `% Jul Total GMV - Year24 consumption` | 2 | 0.14% |
-| `Aug Credit Gmv` | 2 | 0.14% |
-| `% Aug Total GMV - Year24 consumption` | 2 | 0.14% |
-| `Nov Total GMV - Year24` | 2 | 0.14% |
-| `Nov Credit Gmv` | 2 | 0.14% |
-| `Sep Total GMV - Year24` | 2 | 0.14% |
-| `Sep Credit Gmv` | 2 | 0.14% |
-| `% Sep Total GMV - Year24 consumption` | 2 | 0.14% |
-| `Oct Total GMV - Year24` | 2 | 0.14% |
-| `Oct Credit Gmv` | 2 | 0.14% |
-| `% oct Total GMV - Year24 consumption` | 2 | 0.14% |
-| `Jan Credit Gmv.1` | 2 | 0.14% |
+| `May Total GMV - Year25` | 3 | 0.21% |
+| `May Credit Gmv` | 3 | 0.21% |
+| `% May Total GMV - Year25 consumption.1` | 3 | 0.21% |
+| `JuneCredit Gmv` | 3 | 0.21% |
+| `Jan Credit Gmv` | 2 | 0.14% |
 | `Jan Total GMV - Year25` | 2 | 0.14% |
-| `% Dec Total GMV - Year24 consumption` | 2 | 0.14% |
-| `Dec Credit Gmv` | 2 | 0.14% |
-| `Dec Total GMV - Year24` | 2 | 0.14% |
-| `% Nov Total GMV - Year24 consumption` | 2 | 0.14% |
 | `% Jan Total GMV - Year25 consumption` | 2 | 0.14% |
 | `Feb Total GMV - Year25` | 2 | 0.14% |
 | `% Feb Total GMV - Year25 consumption` | 2 | 0.14% |
 | `% Mar Total GMV - Year25 consumption` | 2 | 0.14% |
-| `Mar Credit Gmv.1` | 2 | 0.14% |
+| `Mar Credit Gmv` | 2 | 0.14% |
 | `Mar Total GMV - Year25` | 2 | 0.14% |
-| `Feb Credit Gmv.1` | 2 | 0.14% |
+| `Feb Credit Gmv` | 2 | 0.14% |
 | `Apr Total GMV - Year25` | 1 | 0.07% |
-| `Apr Credit Gmv.1` | 1 | 0.07% |
+| `Apr Credit Gmv` | 1 | 0.07% |
 | `% Apr Total GMV - Year25 consumption` | 1 | 0.07% |
 
 ### Duplicate Rows
@@ -113,56 +77,20 @@ This report provides an overview of data quality across all input datasets.
 | Column | Mean | Min | 25% | 50% | 75% | Max |
 |--------|-----:|----:|---:|---:|---:|----:|
 | `Account` | 25031445.40 | 10010576.00 | 20578156.00 | 24331556.00 | 27584438.00 | 49912503.00 |
-| `Jan Total GMV - Year24 Sales GMV` | 30879.10 | 0.00 | 3570.00 | 12552.00 | 33978.00 | 1240596.00 |
-| `Jan Credit Gmv` | 19547.41 | 0.00 | 0.00 | 6369.00 | 19775.00 | 1145430.00 |
-| `%Jan Consumption` | 0.65 | 0.00 | 0.28 | 0.84 | 1.00 | 1.00 |
-| `Feb Total GMV - Year24` | 26091.32 | 0.00 | 2625.00 | 10316.00 | 27471.00 | 1003574.00 |
-| `Feb Credit Gmv` | 16191.97 | 0.00 | 0.00 | 4410.00 | 16148.00 | 766874.00 |
-| `%Feb consumtion` | 0.65 | 0.00 | 0.25 | 0.84 | 1.00 | 1.00 |
-| `Mar Total GMV - Year24` | 25788.10 | 0.00 | 2583.00 | 9530.00 | 27289.00 | 885870.00 |
-| `Mar Credit Gmv` | 16340.88 | 0.00 | 0.00 | 4616.00 | 16606.00 | 698236.00 |
-| `%Mar Consumtion` | 0.65 | 0.00 | 0.29 | 0.85 | 1.00 | 1.00 |
-| `Apr Total GMV - Year24` | 31284.12 | 0.00 | 3255.00 | 11806.00 | 34061.00 | 1016384.00 |
-| `Apr Credit Gmv` | 18744.02 | 0.00 | 0.00 | 5723.00 | 19760.00 | 665711.00 |
-| `%Apr Consumtion` | 0.65 | 0.00 | 0.27 | 0.85 | 1.00 | 1.00 |
-| `May Total GMV - Year24` | 38758.89 | 0.00 | 4095.00 | 14860.00 | 42246.00 | 1570356.00 |
-| `May Credit Gmv` | 22733.56 | 0.00 | 0.00 | 6610.00 | 24774.00 | 622632.00 |
-| `%May Total GMV - Year24 Consumption` | 0.62 | 0.00 | 0.22 | 0.80 | 0.99 | 1.00 |
-| `June Total GMV - Year24` | 28607.56 | 0.00 | 2520.00 | 10213.00 | 30596.00 | 1438355.00 |
-| `June Credit Gmv` | 16209.35 | 0.00 | 0.00 | 4376.00 | 15841.00 | 788325.00 |
-| `%Jun Total GMV - Year24 consumtion` | 0.53 | 0.00 | 0.00 | 0.66 | 0.97 | 1.00 |
-| `July Total GMV - Year24` | 46034.86 | 0.00 | 1892.50 | 8150.00 | 23041.50 | 32546646.00 |
-| `July Credit Gmv` | 26432.88 | 0.00 | 0.00 | 2977.50 | 11996.50 | 18688047.00 |
-| `% Jul Total GMV - Year24 consumption` | 0.49 | 0.00 | 0.00 | 0.60 | 0.92 | 1.00 |
-| `Aug Total GMV - Year24` | 50190.28 | 0.00 | 1787.50 | 8981.50 | 26467.25 | 35484526.00 |
-| `Aug Credit Gmv` | 27708.17 | 0.00 | 0.00 | 2891.00 | 13169.50 | 19589673.00 |
-| `% Aug Total GMV - Year24 consumption` | 0.48 | 0.00 | 0.00 | 0.50 | 0.94 | 1.00 |
-| `Sep Total GMV - Year24` | 45555.83 | 0.00 | 1482.88 | 7689.98 | 23704.47 | 32207969.16 |
-| `Sep Credit Gmv` | 23930.31 | 0.00 | 0.00 | 1566.00 | 11483.59 | 16918726.88 |
-| `% Sep Total GMV - Year24 consumption` | 0.43 | 0.00 | 0.00 | 0.30 | 0.92 | 1.00 |
-| `Oct Total GMV - Year24` | 53915.15 | 0.00 | 1952.93 | 9343.23 | 28835.25 | 38118008.28 |
-| `Oct Credit Gmv` | 31052.98 | 0.00 | 0.00 | 2605.24 | 15951.67 | 21954459.73 |
-| `% oct Total GMV - Year24 consumption` | 0.47 | 0.00 | 0.00 | 0.53 | 0.94 | 1.00 |
-| `Nov Total GMV - Year24` | 59360.75 | 0.00 | 2100.00 | 11273.50 | 31859.50 | 41968050.00 |
-| `Nov Credit Gmv` | 35782.42 | 0.00 | 0.00 | 3000.00 | 16514.30 | 25298169.84 |
-| `% Nov Total GMV - Year24 consumption` | 0.47 | 0.00 | 0.00 | 0.52 | 0.94 | 1.00 |
-| `Dec Total GMV - Year24` | 60947.60 | 0.00 | 2390.25 | 10365.50 | 34692.00 | 42784371.00 |
-| `Dec Credit Gmv` | 34840.10 | 0.00 | 0.00 | 3214.00 | 16655.00 | 24412436.00 |
-| `% Dec Total GMV - Year24 consumption` | 0.47 | 0.00 | 0.00 | 0.52 | 0.95 | 1.00 |
 | `Jan Total GMV - Year25` | 60854.48 | 0.00 | 1978.50 | 11267.00 | 34307.00 | 42794778.00 |
-| `Jan Credit Gmv.1` | 33482.89 | 0.00 | 0.00 | 2509.00 | 15626.50 | 23511180.00 |
+| `Jan Credit Gmv` | 33482.89 | 0.00 | 0.00 | 2509.00 | 15626.50 | 23511180.00 |
 | `% Jan Total GMV - Year25 consumption` | 0.46 | 0.00 | 0.00 | 0.47 | 0.95 | 1.00 |
 | `Feb Total GMV - Year25` | 64812.91 | 0.00 | 1745.50 | 10420.50 | 36560.50 | 45628569.00 |
-| `Feb Credit Gmv.1` | 35263.71 | 0.00 | 0.00 | 2199.00 | 15145.50 | 24857746.00 |
+| `Feb Credit Gmv` | 35263.71 | 0.00 | 0.00 | 2199.00 | 15145.50 | 24857746.00 |
 | `% Feb Total GMV - Year25 consumption` | 0.44 | 0.00 | 0.00 | 0.37 | 0.92 | 1.00 |
 | `Mar Total GMV - Year25` | 24070.60 | 0.00 | 0.00 | 3629.00 | 14750.25 | 16906365.00 |
-| `Mar Credit Gmv.1` | 13120.52 | 0.00 | 0.00 | 0.00 | 6770.00 | 9243809.00 |
+| `Mar Credit Gmv` | 13120.52 | 0.00 | 0.00 | 0.00 | 6770.00 | 9243809.00 |
 | `% Mar Total GMV - Year25 consumption` | 0.40 | 0.00 | 0.00 | 0.00 | 0.93 | 1.00 |
 | `Apr Total GMV - Year25` | 93724.98 | 0.00 | 1890.00 | 10810.00 | 33417.00 | 44373648.00 |
-| `Apr Credit Gmv.1` | 46004.28 | 0.00 | 0.00 | 1340.00 | 15237.50 | 21772797.00 |
+| `Apr Credit Gmv` | 46004.28 | 0.00 | 0.00 | 1340.00 | 15237.50 | 21772797.00 |
 | `% Apr Total GMV - Year25 consumption` | 0.41 | 0.00 | 0.00 | 0.19 | 0.91 | 1.00 |
 | `May Total GMV - Year25` | 18108.32 | 0.00 | 0.00 | 5707.00 | 19147.00 | 341265.00 |
-| `May Credit Gmv.1` | 8715.07 | 0.00 | 0.00 | 0.00 | 7729.00 | 213413.00 |
+| `May Credit Gmv` | 8715.07 | 0.00 | 0.00 | 0.00 | 7729.00 | 213413.00 |
 | `% May Total GMV - Year25 consumption` | 0.37 | 0.00 | 0.00 | 0.00 | 0.92 | 1.00 |
 | `June Total GMV - Year25` | 8922.99 | 0.00 | 0.00 | 2500.00 | 9909.00 | 324456.60 |
 | `JuneCredit Gmv` | 4326.15 | 0.00 | 0.00 | 0.00 | 3648.00 | 118592.20 |
