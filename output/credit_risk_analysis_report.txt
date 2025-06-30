@@ -1,0 +1,70 @@
+================================================================================
+CREDIT RISK ANALYSIS REPORT: MONTHLY CREDIT RISK ANALYSIS - JUNE 2025
+Generated: 2025-06-30 06:24:36
+================================================================================
+
+EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+The credit portfolio shows high but stable utilization with excellent repayment performance. While the overall risk is manageable, proactive measures should be taken to optimize utilization levels and maintain portfolio health. The strong repayment history provides a solid foundation for strategic credit expansion to qualified customers.
+
+KEY METRICS
+--------------------------------------------------------------------------------
+- Report Date: 2025-06-30
+- Analysis Period: January 2025 - June 2025
+- January Utilization: 94.65%
+- February Utilization: 92.25%
+- March Utilization: 90.08%
+- April Utilization: 94.07%
+- May Utilization: 88.48%
+- June Utilization: 89.57%
+- Total Repayment Amount: ₹15,646,443.09
+- Total Principal Repaid: ₹15,616,846.50
+- Transaction Count: 11,570
+- Avg. Repayment per Txn: ₹1,352.33
+- Avg. Principal per Txn: ₹1,349.77
+- Principal Ratio: 99.81%
+
+RISK ASSESSMENT
+--------------------------------------------------------------------------------
+Current Credit Utilization: 89.57%
+  - Risk Level: HIGH
+  - Ideal Range: <80%
+  - Trend: ↑ 1.2%
+Repayment Performance: Excellent
+  - Risk Level: LOW
+  - Ideal Range: >95% principal recovery
+
+ANALYSIS FINDINGS
+--------------------------------------------------------------------------------
+1. Consistently High Credit Utilization [Priority: ★☆☆]
+   Credit utilization has remained above 88% for the past 6 months, peaking at 94.65% in January 2025. The current utilization is 89.57%.
+   Impact: Sustained high utilization may indicate cash flow constraints and could negatively impact creditworthiness if not managed properly.
+   Recommendation: 1. Review credit limits for top-utilizing customers
+2. Implement utilization alerts for accounts >85%
+3. Consider risk-based pricing for high utilization accounts
+
+2. Strong Repayment Performance [Priority: ★★★]
+   The principal recovery rate is excellent at 99.81% with consistent repayment behavior across all transactions.
+   Impact: Strong repayment performance indicates good credit discipline and reduces overall portfolio risk.
+   Recommendation: 1. Consider expanding credit lines for customers with strong repayment history
+2. Develop loyalty programs for consistent payers
+
+ACTION ITEMS
+--------------------------------------------------------------------------------
+1. Review credit limits for top 20% of customers by utilization
+   Owner: Credit Risk Team
+   Due: 2025-07-14
+   Priority: ★☆☆
+   Status: Not Started
+
+2. Implement weekly utilization monitoring dashboard
+   Owner: Analytics Team
+   Due: 2025-07-30
+   Priority: ★★☆
+   Status: Not Started
+
+3. Develop customer communication for credit limit increase offers
+   Owner: Marketing Team
+   Due: 2025-07-21
+   Priority: ★★☆
+   Status: Not Started
