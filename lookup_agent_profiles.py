@@ -169,13 +169,27 @@ def load_agents() -> pd.DataFrame:
         return pd.DataFrame()
 
 def load_sales() -> pd.DataFrame:
-    """Load sales data from Excel file."""
+    """Load sales data from Excel file with region and organization info."""
     try:
-        sales = pd.read_excel('source_data/sales_data.xlsx')
-        sales['Bzid'] = sales['Account'].astype(str)
+        # Load sales data with specific columns we need
+        sales = pd.read_excel('source_data/sales_data.xlsx', 
+                            usecols=['account', 'organizationname', 'city', 'State', 'Region', 'Ro Name', 'RM Name'])
+        
+        # Standardize column names and clean data
+        sales = (sales
+                .rename(columns={'account': 'Bzid', 'Region': 'Region'})
+                .drop_duplicates('Bzid')  # Keep only one record per agent
+                .assign(Bzid=lambda x: x['Bzid'].astype(str).str.strip())
+                .dropna(subset=['Bzid']))  # Remove rows with missing Bzid
+                
         return sales
     except Exception as e:
         print(f"Error loading sales data: {e}")
+        print("Available columns in sales data:")
+        try:
+            print(pd.read_excel('source_data/sales_data.xlsx', nrows=0).columns.tolist())
+        except Exception as e2:
+            print(f"Could not read column names: {e2}")
         return pd.DataFrame()
 
 def load_dpd() -> pd.DataFrame:
@@ -340,7 +354,8 @@ def print_agent_profile(bzid: str, agent_data: Dict, analysis: Dict) -> None:
     
     # Print last updated timestamp
     from datetime import datetime
-    print(f"\033[90mLast Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\033[0m")
+    print(f"\033[90mAgent ID: {bzid} • Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\033[0m")
+    print("\033[90m" + "-" * 80 + "\033[0m")
     
     # --- Basic Information ---
     print_section("Basic Information", "👤")
@@ -348,6 +363,30 @@ def print_agent_profile(bzid: str, agent_data: Dict, analysis: Dict) -> None:
     # Helper function to print key-value pairs with descriptions
     def print_info(label, value, description=""):
         print(f"\033[1m{label:<20}\033[0m {value}" + (f"  \033[90m# {description}\033[0m" if description else ""))
+    
+    # Print organization and region information if available
+    if 'organizationname' in agent_data and pd.notna(agent_data.get('organizationname')):
+        print_info("Organization", agent_data['organizationname'], "Agent's organization")
+    
+    if 'Region' in agent_data and pd.notna(agent_data.get('Region')):
+        print_info("Region", agent_data['Region'], "Agent's primary region")
+    
+    if 'city' in agent_data and pd.notna(agent_data.get('city')):
+        location_parts = []
+        if pd.notna(agent_data.get('city')):
+            location_parts.append(str(agent_data['city']))
+        if 'State' in agent_data and pd.notna(agent_data.get('State')):
+            location_parts.append(str(agent_data['State']))
+        if location_parts:
+            print_info("Location", ", ".join(location_parts), "Agent's location")
+    
+    if 'Ro Name' in agent_data and pd.notna(agent_data.get('Ro Name')):
+        print_info("Regional Officer", agent_data['Ro Name'], "Assigned regional officer")
+    
+    if 'RM Name' in agent_data and pd.notna(agent_data.get('RM Name')):
+        print_info("Regional Manager", agent_data['RM Name'], "Assigned regional manager")
+    
+    print()  # Add spacing after basic info section
     
     print_info("Agent ID:", bzid, "Unique identifier for the agent")
     print_info("Agent Name:", agent_data.get('Username', 'N/A'), "Full name of the agent")
@@ -701,6 +740,9 @@ def main():
         print("Failed to load agent data. Exiting.")
         return
     
+    print("Loading sales data...")
+    sales_data = load_sales()
+    
     print("Loading repayment metrics...")
     repay_metrics = load_repayment_metrics()
     
@@ -713,19 +755,16 @@ def main():
         except Exception as e:
             print(f"Failed to generate repayment metrics: {e}")
     
-    # Ensure Bzid column exists in both DataFrames and has consistent case
-    agents['Bzid'] = agents['Bzid'].astype(str)
+    # Ensure Bzid column exists in all DataFrames and has consistent case
+    agents['Bzid'] = agents['Bzid'].astype(str).str.strip()
     
-    # Check for case sensitivity in column names
-    bzid_col_agents = next((col for col in agents.columns if col.lower() == 'bzid'), None)
-    if bzid_col_agents and bzid_col_agents != 'Bzid':
-        agents = agents.rename(columns={bzid_col_agents: 'Bzid'})
+    # Merge agent data with sales data first
+    if not sales_data.empty and 'Bzid' in sales_data.columns:
+        agents = pd.merge(agents, sales_data, on='Bzid', how='left')
+    else:
+        print("Warning: Could not merge with sales data - region and organization info will be missing")
     
-    # Ensure Bzid is a column, not an index
-    if agents.index.name and agents.index.name.lower() == 'bzid':
-        agents = agents.reset_index()
-    
-    # Merge agent data with repayment metrics
+    # Then merge with repayment metrics
     if not repay_metrics.empty and 'Bzid' in repay_metrics.columns:
         agent_data = pd.merge(agents, repay_metrics, on='Bzid', how='left')
     else:

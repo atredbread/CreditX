@@ -179,22 +179,27 @@ class AgentClassifier:
         logger.debug(f"\n=== Classifying agent {agent_id} ===")
         
         try:
-            # Calculate credit health score if not provided
-            if 'credit_health_score' not in agent_features:
-                agent_features['credit_health_score'] = self._calculate_credit_health_score(agent_features)
+            # Create a dictionary to store working data
+            working_data = agent_features.to_dict()
             
-            # Get risk indicators
-            risk_indicators = self._get_risk_indicators(agent_features)
+            # Calculate credit health score if not provided
+            if 'credit_health_score' not in working_data:
+                credit_health_score = self._calculate_credit_health_score(pd.Series(working_data))
+                working_data['credit_health_score'] = credit_health_score
+            else:
+                credit_health_score = working_data['credit_health_score']
+            
+            # Get risk indicators using a Series created from working_data
+            risk_indicators = self._get_risk_indicators(pd.Series(working_data))
             
             # Extract features with default values if missing
-            utilization = agent_features.get('credit_utilization', 0)
-            repayment_score = agent_features.get('repayment_score', 100)  # Assume good if missing
-            gmv_trend = agent_features.get('gmv_trend_6m', 0)
-            credit_gmv_share = agent_features.get('credit_gmv_share', 0)
-            delinquent_30p = agent_features.get('delinquent_30p', False)
-            delinquent_60p = agent_features.get('delinquent_60p', False)
-            delinquent_90p = agent_features.get('delinquent_90p', False)
-            credit_health_score = agent_features['credit_health_score']
+            utilization = working_data.get('credit_utilization', 0)
+            repayment_score = working_data.get('repayment_score', 100)  # Assume good if missing
+            gmv_trend = working_data.get('gmv_trend_6m', 0)
+            credit_gmv_share = working_data.get('credit_gmv_share', 0)
+            delinquent_30p = working_data.get('delinquent_30p', False)
+            delinquent_60p = working_data.get('delinquent_60p', False)
+            delinquent_90p = working_data.get('delinquent_90p', False)
             
             # Log feature values with more detail
             logger.debug("\n=== AGENT FEATURES ===")

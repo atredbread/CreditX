@@ -1,0 +1,117 @@
+2025-07-01 10:12:28,603 - root - INFO - === Testing with Real Data ===
+2025-07-01 10:12:28,605 - root - INFO - Starting agent classification test...
+2025-07-01 10:12:28,606 - root - INFO - Loading data...
+2025-07-01 10:12:28,606 - src.credit_health_engine - INFO - Loading and validating input data...
+2025-07-01 10:12:28,606 - src.credit_health_engine - INFO - Loading credit_Agents.xlsx...
+2025-07-01 10:12:28,852 - src.credit_health_engine - INFO - Loaded 1915 rows from credit_Agents.xlsx
+2025-07-01 10:12:28,855 - src.credit_health_engine - INFO - [OK] Successfully loaded credit_Agents.xlsx with shape (1915, 7)
+2025-07-01 10:12:28,856 - src.credit_health_engine - INFO - Loading Credit_history_sales_vs_credit_sales.xlsx...
+2025-07-01 10:12:29,013 - src.credit_health_engine - WARNING - Could not convert 'Account' to int64 directly: Cannot convert non-finite values (NA or inf) to integer
+2025-07-01 10:12:29,017 - src.credit_health_engine - INFO - Successfully cleaned 'Account' column
+2025-07-01 10:12:29,021 - src.credit_health_engine - INFO - Found complete data for: total_gmv, credit_gmv
+2025-07-01 10:12:29,021 - src.credit_health_engine - INFO - Loaded 1413 rows from Credit_history_sales_vs_credit_sales.xlsx
+2025-07-01 10:12:29,024 - src.credit_health_engine - INFO - [OK] Successfully loaded Credit_history_sales_vs_credit_sales.xlsx with shape (1413, 19)
+2025-07-01 10:12:29,024 - src.credit_health_engine - INFO - Loading Credit_sales_data.xlsx...
+2025-07-01 10:12:29,289 - src.credit_health_engine - INFO - Loaded 6226 rows from Credit_sales_data.xlsx
+2025-07-01 10:12:29,292 - src.credit_health_engine - INFO - [OK] Successfully loaded Credit_sales_data.xlsx with shape (6226, 4)
+2025-07-01 10:12:29,292 - src.credit_health_engine - INFO - Loading DPD.xlsx...
+2025-07-01 10:12:29,307 - src.credit_health_engine - INFO - Loaded 91 rows from DPD.xlsx
+2025-07-01 10:12:29,309 - src.credit_health_engine - INFO - [OK] Successfully loaded DPD.xlsx with shape (91, 7)
+2025-07-01 10:12:29,309 - src.credit_health_engine - INFO - Loading Region_contact.xlsx...
+2025-07-01 10:12:29,314 - src.credit_health_engine - INFO - Loaded 9 rows from Region_contact.xlsx
+2025-07-01 10:12:29,318 - src.credit_health_engine - INFO - [OK] Successfully loaded Region_contact.xlsx with shape (9, 3)
+2025-07-01 10:12:29,318 - src.credit_health_engine - INFO - Loading sales_data.xlsx...
+2025-07-01 10:12:30,189 - src.credit_health_engine - INFO - Loaded 13913 rows from sales_data.xlsx
+2025-07-01 10:12:30,192 - src.credit_health_engine - INFO - [OK] Successfully loaded sales_data.xlsx with shape (13913, 13)
+2025-07-01 10:12:30,192 - src.credit_health_engine - INFO - 
+==================================================
+2025-07-01 10:12:30,192 - src.credit_health_engine - INFO - DATA LOADING SUMMARY
+2025-07-01 10:12:30,192 - src.credit_health_engine - INFO - ==================================================
+2025-07-01 10:12:30,192 - src.credit_health_engine - INFO - 
+[OK] Successfully loaded files:
+2025-07-01 10:12:30,194 - src.credit_health_engine - INFO -   - Credit_history_sales_vs_credit_sales.xlsx: 1413 rows
+2025-07-01 10:12:30,194 - src.credit_health_engine - INFO -   - Credit_sales_data.xlsx: 6226 rows
+2025-07-01 10:12:30,194 - src.credit_health_engine - INFO -   - DPD.xlsx: 91 rows
+2025-07-01 10:12:30,194 - src.credit_health_engine - INFO -   - Region_contact.xlsx: 9 rows
+2025-07-01 10:12:30,194 - src.credit_health_engine - INFO -   - credit_Agents.xlsx: 1915 rows
+2025-07-01 10:12:30,196 - src.credit_health_engine - INFO -   - sales_data.xlsx: 13913 rows
+2025-07-01 10:12:30,196 - src.credit_health_engine - INFO - 
+✅ All files loaded and validated successfully!
+2025-07-01 10:12:30,196 - src.credit_health_engine - INFO - ==================================================
+
+2025-07-01 10:12:30,196 - root - INFO - Engineering features...
+2025-07-01 10:12:30,196 - src.credit_health_engine - INFO - Engineering features...
+2025-07-01 10:12:30,197 - src.feature_engineering - INFO - Engineering all features...
+2025-07-01 10:12:30,198 - src.feature_engineering - INFO - Calculating credit utilization...
+2025-07-01 10:12:30,201 - src.feature_engineering - INFO - Added feature: credit_utilization
+2025-07-01 10:12:30,201 - src.feature_engineering - INFO - Calculating comprehensive repayment scores...
+2025-07-01 10:12:30,245 - src.feature_engineering - INFO - Calculated repayment scores for 1915 agents
+2025-07-01 10:12:30,245 - src.feature_engineering - INFO - Added feature: repayment_score
+2025-07-01 10:12:30,248 - src.feature_engineering - INFO - Calculating credit GMV share...
+2025-07-01 10:12:30,248 - src.feature_engineering - ERROR - Missing required columns in credit sales data
+2025-07-01 10:12:30,248 - src.feature_engineering - WARNING - Could not calculate feature: credit_gmv_share
+2025-07-01 10:12:30,248 - src.feature_engineering - INFO - Calculating GMV trends (total: 6m, credit: 5m)...
+2025-07-01 10:12:30,250 - src.feature_engineering - ERROR - Missing columns in total data: Bzid, SaleDate, TotalSales
+2025-07-01 10:12:30,253 - src.feature_engineering - WARNING - No credit sales data available
+2025-07-01 10:12:30,255 - src.feature_engineering - INFO - Calculated GMV trends for 0 agents
+2025-07-01 10:12:30,256 - src.feature_engineering - WARNING - Could not calculate feature: gmv_trend_6m
+2025-07-01 10:12:30,257 - src.feature_engineering - INFO - Calculating comprehensive recovery metrics...
+2025-07-01 10:12:30,261 - src.feature_engineering - INFO - Calculated recovery metrics for 91 agents
+2025-07-01 10:12:30,262 - src.feature_engineering - INFO - Added feature: recovery_index
+2025-07-01 10:12:30,263 - src.feature_engineering - INFO - Calculating delinquency flags and DPD trends...
+2025-07-01 10:12:30,263 - src.feature_engineering - ERROR - Required columns not found in DPD data: ['DueDate']
+2025-07-01 10:12:30,264 - src.feature_engineering - WARNING - Using default values for delinquency flags
+2025-07-01 10:12:30,264 - src.feature_engineering - INFO - Calculating region risk...
+2025-07-01 10:12:30,264 - src.feature_engineering - ERROR - Required data or columns not found for region risk calculation
+2025-07-01 10:12:30,267 - src.feature_engineering - INFO - Feature engineering complete. Created 6 features.
+2025-07-01 10:12:30,267 - src.credit_health_engine - INFO - Successfully engineered 6 features for 1915 agents
+2025-07-01 10:12:30,276 - src.credit_health_engine - INFO - Features saved to output\features/engineered_features.csv
+2025-07-01 10:12:30,276 - root - INFO - Classifying agents...
+2025-07-01 10:12:30,276 - src.credit_health_engine - INFO - Classifying agents into tiers...
+2025-07-01 10:12:30,395 - src.agent_classifier - INFO - Classified 100/1915 agents
+2025-07-01 10:12:30,495 - src.agent_classifier - INFO - Classified 200/1915 agents
+2025-07-01 10:12:30,585 - src.agent_classifier - INFO - Classified 300/1915 agents
+2025-07-01 10:12:30,674 - src.agent_classifier - INFO - Classified 400/1915 agents
+2025-07-01 10:12:30,762 - src.agent_classifier - INFO - Classified 500/1915 agents
+2025-07-01 10:12:30,846 - src.agent_classifier - INFO - Classified 600/1915 agents
+2025-07-01 10:12:30,935 - src.agent_classifier - INFO - Classified 700/1915 agents
+2025-07-01 10:12:31,028 - src.agent_classifier - INFO - Classified 800/1915 agents
+2025-07-01 10:12:31,113 - src.agent_classifier - INFO - Classified 900/1915 agents
+2025-07-01 10:12:31,267 - src.agent_classifier - INFO - Classified 1000/1915 agents
+2025-07-01 10:12:31,411 - src.agent_classifier - INFO - Classified 1100/1915 agents
+2025-07-01 10:12:31,558 - src.agent_classifier - INFO - Classified 1200/1915 agents
+2025-07-01 10:12:31,645 - src.agent_classifier - INFO - Classified 1300/1915 agents
+2025-07-01 10:12:31,746 - src.agent_classifier - INFO - Classified 1400/1915 agents
+2025-07-01 10:12:31,834 - src.agent_classifier - INFO - Classified 1500/1915 agents
+2025-07-01 10:12:31,924 - src.agent_classifier - INFO - Classified 1600/1915 agents
+2025-07-01 10:12:32,013 - src.agent_classifier - INFO - Classified 1700/1915 agents
+2025-07-01 10:12:32,104 - src.agent_classifier - INFO - Classified 1800/1915 agents
+2025-07-01 10:12:32,262 - src.agent_classifier - INFO - Classified 1900/1915 agents
+2025-07-01 10:12:32,290 - src.agent_classifier - INFO - Classification complete. Tier distribution:
+tier
+P0       2
+P1    1909
+P4       4
+Name: count, dtype: int64
+2025-07-01 10:12:32,290 - src.credit_health_engine - INFO - Successfully classified 1915 agents
+2025-07-01 10:12:32,295 - src.credit_health_engine - INFO - Classification results saved to output\classifications\agent_classifications.csv
+2025-07-01 10:12:32,295 - root - INFO - 
+=== Agent Classification Results ===
+2025-07-01 10:12:32,299 - root - INFO - 
+Tier Distribution:
+2025-07-01 10:12:32,299 - root - INFO - P0: 2 agents (0.1%)
+2025-07-01 10:12:32,299 - root - INFO - P1: 1909 agents (99.7%)
+2025-07-01 10:12:32,299 - root - INFO - P4: 4 agents (0.2%)
+2025-07-01 10:12:32,299 - root - INFO - 
+Sample Classifications:
+2025-07-01 10:12:32,300 - root - INFO - Agent 18165404: Tier P1 - Usage decline or slight delays
+2025-07-01 10:12:32,300 - root - INFO -    Action: Follow-up
+2025-07-01 10:12:32,300 - root - ERROR - Error during agent classification test: Unknown format code 'f' for object of type 'str'
+Traceback (most recent call last):
+  File "d:\projects\Credit Risk\tests\test_agent_classification.py", line 139, in main
+    success_real = test_agent_classification()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\projects\Credit Risk\tests\test_agent_classification.py", line 91, in test_agent_classification
+    f"gmv_share={row.get('credit_gmv_share', 'N/A'):.2f}")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Unknown format code 'f' for object of type 'str'

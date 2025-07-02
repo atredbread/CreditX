@@ -1,0 +1,157 @@
+2025-07-01 21:46:11,484 - root - INFO - === Testing with Real Data ===
+2025-07-01 21:46:11,484 - root - INFO - Starting agent classification test...
+2025-07-01 21:46:11,492 - root - INFO - Loading data...
+2025-07-01 21:46:11,492 - src.credit_health_engine - INFO - Loading and validating input data...
+2025-07-01 21:46:11,492 - src.credit_health_engine - INFO - Loading credit_Agents.xlsx...
+2025-07-01 21:46:13,045 - src.credit_health_engine - INFO - Loaded 1915 rows from credit_Agents.xlsx
+2025-07-01 21:46:13,061 - src.credit_health_engine - INFO - [OK] Successfully loaded credit_Agents.xlsx with shape (1915, 7)
+2025-07-01 21:46:13,061 - src.credit_health_engine - INFO - Loading Credit_history_sales_vs_credit_sales.xlsx...
+2025-07-01 21:46:13,204 - src.credit_health_engine - WARNING - Could not convert 'Account' to int64 directly: Cannot convert non-finite values (NA or inf) to integer
+2025-07-01 21:46:13,213 - src.credit_health_engine - INFO - Successfully cleaned 'Account' column
+2025-07-01 21:46:13,216 - src.credit_health_engine - INFO - Found complete data for: total_gmv, credit_gmv
+2025-07-01 21:46:13,216 - src.credit_health_engine - INFO - Loaded 1413 rows from Credit_history_sales_vs_credit_sales.xlsx
+2025-07-01 21:46:13,219 - src.credit_health_engine - INFO - [OK] Successfully loaded Credit_history_sales_vs_credit_sales.xlsx with shape (1413, 19)
+2025-07-01 21:46:13,219 - src.credit_health_engine - INFO - Loading Credit_sales_data.xlsx...
+2025-07-01 21:46:13,478 - src.credit_health_engine - INFO - Loaded 6226 rows from Credit_sales_data.xlsx
+2025-07-01 21:46:13,478 - src.credit_health_engine - INFO - [OK] Successfully loaded Credit_sales_data.xlsx with shape (6226, 4)
+2025-07-01 21:46:13,481 - src.credit_health_engine - INFO - Loading DPD.xlsx...
+2025-07-01 21:46:13,501 - src.credit_health_engine - INFO - Loaded 91 rows from DPD.xlsx
+2025-07-01 21:46:13,504 - src.credit_health_engine - INFO - [OK] Successfully loaded DPD.xlsx with shape (91, 7)
+2025-07-01 21:46:13,504 - src.credit_health_engine - INFO - Loading Region_contact.xlsx...
+2025-07-01 21:46:13,519 - src.credit_health_engine - INFO - Loaded 9 rows from Region_contact.xlsx
+2025-07-01 21:46:13,520 - src.credit_health_engine - INFO - [OK] Successfully loaded Region_contact.xlsx with shape (9, 3)
+2025-07-01 21:46:13,521 - src.credit_health_engine - INFO - Loading sales_data.xlsx...
+2025-07-01 21:46:14,312 - src.credit_health_engine - INFO - Loaded 13913 rows from sales_data.xlsx
+2025-07-01 21:46:14,313 - src.credit_health_engine - INFO - [OK] Successfully loaded sales_data.xlsx with shape (13913, 13)
+2025-07-01 21:46:14,315 - src.credit_health_engine - INFO - 
+==================================================
+2025-07-01 21:46:14,315 - src.credit_health_engine - INFO - DATA LOADING SUMMARY
+2025-07-01 21:46:14,315 - src.credit_health_engine - INFO - ==================================================
+2025-07-01 21:46:14,316 - src.credit_health_engine - INFO - 
+[OK] Successfully loaded files:
+2025-07-01 21:46:14,316 - src.credit_health_engine - INFO -   - Credit_history_sales_vs_credit_sales.xlsx: 1413 rows
+2025-07-01 21:46:14,316 - src.credit_health_engine - INFO -   - Credit_sales_data.xlsx: 6226 rows
+2025-07-01 21:46:14,316 - src.credit_health_engine - INFO -   - DPD.xlsx: 91 rows
+2025-07-01 21:46:14,317 - src.credit_health_engine - INFO -   - Region_contact.xlsx: 9 rows
+2025-07-01 21:46:14,317 - src.credit_health_engine - INFO -   - credit_Agents.xlsx: 1915 rows
+2025-07-01 21:46:14,317 - src.credit_health_engine - INFO -   - sales_data.xlsx: 13913 rows
+2025-07-01 21:46:14,317 - src.credit_health_engine - INFO - 
+✅ All files loaded and validated successfully!
+2025-07-01 21:46:14,317 - src.credit_health_engine - INFO - ==================================================
+
+2025-07-01 21:46:14,317 - root - INFO - Engineering features...
+2025-07-01 21:46:14,317 - src.credit_health_engine - INFO - Engineering features...
+2025-07-01 21:46:14,317 - src.feature_engineering - INFO - Engineering all features...
+2025-07-01 21:46:14,319 - src.feature_engineering - INFO - Calculating credit utilization...
+2025-07-01 21:46:14,322 - src.feature_engineering - INFO - Added feature: credit_utilization
+2025-07-01 21:46:14,324 - src.feature_engineering - INFO - Calculating comprehensive repayment scores...
+2025-07-01 21:46:14,385 - src.feature_engineering - INFO - Calculated repayment scores for 1915 agents
+2025-07-01 21:46:14,385 - src.feature_engineering - INFO - Added feature: repayment_score
+2025-07-01 21:46:14,386 - src.feature_engineering - INFO - Calculating credit GMV share...
+2025-07-01 21:46:14,386 - src.feature_engineering - ERROR - Missing required columns in credit sales data
+2025-07-01 21:46:14,387 - src.feature_engineering - WARNING - Could not calculate feature: credit_gmv_share
+2025-07-01 21:46:14,387 - src.feature_engineering - INFO - Calculating GMV trends (total: 6m, credit: 5m)...
+2025-07-01 21:46:14,388 - src.feature_engineering - ERROR - Missing columns in total data: Bzid, SaleDate, TotalSales
+2025-07-01 21:46:14,388 - src.feature_engineering - WARNING - No credit sales data available
+2025-07-01 21:46:14,388 - src.feature_engineering - INFO - Calculated GMV trends for 0 agents
+2025-07-01 21:46:14,388 - src.feature_engineering - WARNING - Could not calculate feature: gmv_trend_6m
+2025-07-01 21:46:14,388 - src.feature_engineering - INFO - Calculating comprehensive recovery metrics...
+2025-07-01 21:46:14,392 - src.feature_engineering - INFO - Calculated recovery metrics for 91 agents
+2025-07-01 21:46:14,393 - src.feature_engineering - INFO - Added feature: recovery_index
+2025-07-01 21:46:14,393 - src.feature_engineering - INFO - Calculating delinquency flags and DPD trends...
+2025-07-01 21:46:14,393 - src.feature_engineering - ERROR - Required columns not found in DPD data: ['DueDate']
+2025-07-01 21:46:14,393 - src.feature_engineering - WARNING - Using default values for delinquency flags
+2025-07-01 21:46:14,393 - src.feature_engineering - INFO - Calculating region risk...
+2025-07-01 21:46:14,393 - src.feature_engineering - ERROR - Required data or columns not found for region risk calculation
+2025-07-01 21:46:14,395 - src.feature_engineering - INFO - Feature engineering complete. Created 6 features.
+2025-07-01 21:46:14,395 - src.credit_health_engine - INFO - Successfully engineered 6 features for 1915 agents
+2025-07-01 21:46:14,411 - src.credit_health_engine - INFO - Features saved to output\features/engineered_features.csv
+2025-07-01 21:46:14,411 - root - INFO - Classifying agents...
+2025-07-01 21:46:14,411 - src.credit_health_engine - INFO - Classifying agents into tiers...
+2025-07-01 21:46:14,438 - src.agent_classifier - INFO - Classified 100/1915 agents
+2025-07-01 21:46:14,467 - src.agent_classifier - INFO - Classified 200/1915 agents
+2025-07-01 21:46:14,495 - src.agent_classifier - INFO - Classified 300/1915 agents
+2025-07-01 21:46:14,522 - src.agent_classifier - INFO - Classified 400/1915 agents
+2025-07-01 21:46:14,549 - src.agent_classifier - INFO - Classified 500/1915 agents
+2025-07-01 21:46:14,574 - src.agent_classifier - INFO - Classified 600/1915 agents
+2025-07-01 21:46:14,602 - src.agent_classifier - INFO - Classified 700/1915 agents
+2025-07-01 21:46:14,628 - src.agent_classifier - INFO - Classified 800/1915 agents
+2025-07-01 21:46:14,656 - src.agent_classifier - INFO - Classified 900/1915 agents
+2025-07-01 21:46:14,684 - src.agent_classifier - INFO - Classified 1000/1915 agents
+2025-07-01 21:46:14,713 - src.agent_classifier - INFO - Classified 1100/1915 agents
+2025-07-01 21:46:14,739 - src.agent_classifier - INFO - Classified 1200/1915 agents
+2025-07-01 21:46:14,768 - src.agent_classifier - INFO - Classified 1300/1915 agents
+2025-07-01 21:46:14,795 - src.agent_classifier - INFO - Classified 1400/1915 agents
+2025-07-01 21:46:14,824 - src.agent_classifier - INFO - Classified 1500/1915 agents
+2025-07-01 21:46:14,852 - src.agent_classifier - INFO - Classified 1600/1915 agents
+2025-07-01 21:46:14,878 - src.agent_classifier - INFO - Classified 1700/1915 agents
+2025-07-01 21:46:14,907 - src.agent_classifier - INFO - Classified 1800/1915 agents
+2025-07-01 21:46:14,935 - src.agent_classifier - INFO - Classified 1900/1915 agents
+2025-07-01 21:46:14,945 - src.agent_classifier - INFO - Classification complete. Tier distribution:
+tier
+P0       2
+P1    1909
+P4       4
+Name: count, dtype: int64
+2025-07-01 21:46:14,945 - src.credit_health_engine - INFO - Successfully classified 1915 agents
+2025-07-01 21:46:14,952 - src.credit_health_engine - INFO - Classification results saved to output\classifications\agent_classifications.csv
+2025-07-01 21:46:14,952 - root - INFO - 
+=== Agent Classification Results ===
+2025-07-01 21:46:14,952 - root - INFO - 
+Tier Distribution:
+2025-07-01 21:46:14,952 - root - INFO - P0: 2 agents (0.1%)
+2025-07-01 21:46:14,955 - root - INFO - P1: 1909 agents (99.7%)
+2025-07-01 21:46:14,955 - root - INFO - P4: 4 agents (0.2%)
+2025-07-01 21:46:14,955 - root - INFO - 
+Sample Classifications:
+2025-07-01 21:46:14,956 - root - INFO - Agent 21732379: Tier P1 - Usage decline or slight delays
+2025-07-01 21:46:14,956 - root - INFO -    Action: Follow-up
+2025-07-01 21:46:14,956 - root - INFO -    Features: util=100.00, repay=500, gmv_share=N/A, gmv_trend=N/A
+2025-07-01 21:46:14,957 - root - INFO - Agent 29764603: Tier P1 - Usage decline or slight delays
+2025-07-01 21:46:14,957 - root - INFO -    Action: Follow-up
+2025-07-01 21:46:14,957 - root - INFO -    Features: util=100.00, repay=500, gmv_share=N/A, gmv_trend=N/A
+2025-07-01 21:46:14,957 - root - INFO - Agent 41784449: Tier P1 - Usage decline or slight delays
+2025-07-01 21:46:14,957 - root - INFO -    Action: Follow-up
+2025-07-01 21:46:14,957 - root - INFO -    Features: util=100.00, repay=500, gmv_share=N/A, gmv_trend=N/A
+2025-07-01 21:46:14,957 - root - INFO - Agent 23577411: Tier P1 - Usage decline or slight delays
+2025-07-01 21:46:14,957 - root - INFO -    Action: Follow-up
+2025-07-01 21:46:14,958 - root - INFO -    Features: util=100.00, repay=500, gmv_share=N/A, gmv_trend=N/A
+2025-07-01 21:46:14,958 - root - INFO - Agent 26945734: Tier P1 - Usage decline or slight delays
+2025-07-01 21:46:14,958 - root - INFO -    Action: Follow-up
+2025-07-01 21:46:14,958 - root - INFO -    Features: util=94.64, repay=500, gmv_share=N/A, gmv_trend=N/A
+2025-07-01 21:46:14,959 - root - INFO - 
+=== Testing with Sample Data ===
+2025-07-01 21:46:14,959 - root - INFO - 
+Testing AgentClassifier with sample data...
+2025-07-01 21:46:14,959 - root - INFO - 
+Sample 1:
+2025-07-01 21:46:14,959 - root - INFO - Features: {'credit_utilization': 0.9, 'repayment_score': 95, 'gmv_trend_6m': 0.2, 'credit_gmv_share': 0.8, 'delinquent_30p': nan}
+2025-07-01 21:46:14,959 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-07-01 21:46:14,959 - root - INFO - Recommended Action: Monitor / intervene
+2025-07-01 21:46:14,961 - root - INFO - 
+Sample 2:
+2025-07-01 21:46:14,961 - root - INFO - Features: {'credit_utilization': 0.6, 'repayment_score': 75, 'gmv_trend_6m': -0.1, 'credit_gmv_share': 0.5, 'delinquent_30p': True}
+2025-07-01 21:46:14,961 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-07-01 21:46:14,961 - root - INFO - Recommended Action: Monitor / intervene
+2025-07-01 21:46:14,961 - root - INFO - 
+Sample 3:
+2025-07-01 21:46:14,961 - root - INFO - Features: {'credit_utilization': 0.95, 'repayment_score': 60, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.9, 'delinquent_30p': True}
+2025-07-01 21:46:14,961 - root - INFO - Classification: Tier P2 - Maxed limit + late payments
+2025-07-01 21:46:14,961 - root - INFO - Recommended Action: Monitor / intervene
+2025-07-01 21:46:14,963 - root - INFO - 
+Sample 4:
+2025-07-01 21:46:14,963 - root - INFO - Features: {'credit_utilization': 0.3, 'repayment_score': 85, 'gmv_trend_6m': -0.3, 'credit_gmv_share': 0.4, 'delinquent_30p': nan}
+2025-07-01 21:46:14,963 - root - INFO - Classification: Tier P1 - Usage decline or slight delays
+2025-07-01 21:46:14,963 - root - INFO - Recommended Action: Follow-up
+2025-07-01 21:46:14,963 - root - INFO - 
+Sample 5:
+2025-07-01 21:46:14,963 - root - INFO - Features: {'credit_utilization': 0.05, 'repayment_score': 100, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.05, 'delinquent_30p': nan}
+2025-07-01 21:46:14,963 - root - INFO - Classification: Tier P4 - Credit available but not used
+2025-07-01 21:46:14,963 - root - INFO - Recommended Action: Educate / activate
+2025-07-01 21:46:14,963 - root - INFO - 
+Sample 6:
+2025-07-01 21:46:14,963 - root - INFO - Features: {'credit_utilization': 0.0, 'repayment_score': 0, 'gmv_trend_6m': 0.0, 'credit_gmv_share': 0.0, 'delinquent_30p': nan}
+2025-07-01 21:46:14,963 - root - INFO - Classification: Tier P5 - No use or repayment for a long time
+2025-07-01 21:46:14,963 - root - INFO - Recommended Action: Churned — deprioritize
+2025-07-01 21:46:14,965 - root - INFO - 
+✅ All tests completed successfully!

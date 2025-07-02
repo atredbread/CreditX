@@ -86,9 +86,24 @@ def test_agent_classification():
         for idx, row in sample.iterrows():
             logger.info(f"Agent {idx}: Tier {row['tier']} - {row['tier_description']}")
             logger.info(f"   Action: {row['recommended_action']}")
-            logger.info(f"   Features: util={row.get('credit_utilization', 'N/A'):.2f}, "
-                      f"repay={row.get('repayment_score', 'N/A')}, "
-                      f"gmv_share={row.get('credit_gmv_share', 'N/A'):.2f}")
+            # Safely format numeric values with type checking
+            def format_value(value, default='N/A', precision=2):
+                if pd.isna(value) or value is None:
+                    return default
+                try:
+                    if isinstance(value, (int, float)):
+                        if precision == 0:
+                            return f"{int(value)}"
+                        return f"{float(value):.{precision}f}"
+                    return str(value)
+                except (ValueError, TypeError):
+                    return str(value) if value is not None else default
+            
+            logger.info("   Features: " + 
+                      f"util={format_value(row.get('credit_utilization'))}, " +
+                      f"repay={format_value(row.get('repayment_score'), precision=0)}, " +
+                      f"gmv_share={format_value(row.get('credit_gmv_share'))}, " +
+                      f"gmv_trend={format_value(row.get('gmv_trend_6m'))}")
         
         return True
     else:
