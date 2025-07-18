@@ -1,0 +1,6 @@
+BZID,organizationname,status,Region,city,State,Credit Limit,Credit Line Balance,TotalSeats,GMV
+BZ1000,Test Org 1,Active,Mumbai,Mumbai,Maharashtra,50000,25000,10,100000
+BZ1001,Test Org 2,Active,Delhi,New Delhi,Delhi,75000,60000,15,150000
+BZ1002,Test Org 3,Inactive,Bangalore,Bangalore,Karnataka,100000,75000,20,200000
+BZ1003,Test Org 4,Suspended,Hyderabad,Hyderabad,Telangana,25000,20000,5,50000
+BZ1004,Test Org 5,Active,Chennai,Chennai,Tamil Nadu,60000,30000,25,175000

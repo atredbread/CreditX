@@ -1,0 +1,395 @@
+{
+  "region": "Karnataka",
+  "total_agents_analyzed": 213,
+  "average_utilization": 0.882,
+  "top_gainers": [
+    {
+      "agent_id": "23839020",
+      "organization": "K K Travels Belgaum",
+      "region": "Karnataka",
+      "credit_limit": 93000,
+      "credit_balance": 258.49,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.0027794623655913978,
+        "repayment_score": 68.185854520455,
+        "gmv_trend": -0.020235256271440377
+      },
+      "last_updated": "2025-07-03T00:32:47.201829",
+      "credit_health": 0.0027794623655913978
+    },
+    {
+      "agent_id": "20329520",
+      "organization": "Shankar ",
+      "region": "Karnataka",
+      "credit_limit": 15000,
+      "credit_balance": 163.72,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.010914666666666666,
+        "repayment_score": 2.0898333675745007,
+        "gmv_trend": 0.013899371451772502
+      },
+      "last_updated": "2025-07-03T00:32:47.196396",
+      "credit_health": 0.010914666666666666
+    },
+    {
+      "agent_id": "28603784",
+      "organization": "Yatra Mitra Holidays",
+      "region": "Karnataka",
+      "credit_limit": 10000,
+      "credit_balance": 478.07,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.047807,
+        "repayment_score": 93.87537643488375,
+        "gmv_trend": 0.14547425261324537
+      },
+      "last_updated": "2025-07-03T00:32:47.171773",
+      "credit_health": 0.047807
+    },
+    {
+      "agent_id": "24397101",
+      "organization": "Aradhya Travels",
+      "region": "Karnataka",
+      "credit_limit": 11000,
+      "credit_balance": 1203.0,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.10936363636363636,
+        "repayment_score": 16.691182669346315,
+        "gmv_trend": -0.19222186696048116
+      },
+      "last_updated": "2025-07-03T00:32:47.137718",
+      "credit_health": 0.10936363636363636
+    },
+    {
+      "agent_id": "16987726",
+      "organization": "K V ENTERPRISES",
+      "region": "Karnataka",
+      "credit_limit": 50000,
+      "credit_balance": 6835.72,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.1367144,
+        "repayment_score": 58.406469904792125,
+        "gmv_trend": 0.17193731232566395
+      },
+      "last_updated": "2025-07-03T00:32:47.221729",
+      "credit_health": 0.1367144
+    },
+    {
+      "agent_id": "25935184",
+      "organization": "Nisarga Holidays",
+      "region": "Karnataka",
+      "credit_limit": 10000,
+      "credit_balance": 2201.95,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.22019499999999997,
+        "repayment_score": 5.3120650372471045,
+        "gmv_trend": -0.15556363553230734
+      },
+      "last_updated": "2025-07-03T00:32:47.146133",
+      "credit_health": 0.22019499999999997
+    },
+    {
+      "agent_id": "24913447",
+      "organization": "SHIVANI TRAVELS BOOKING",
+      "region": "Karnataka",
+      "credit_limit": 40000,
+      "credit_balance": 9800.86,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.2450215,
+        "repayment_score": 59.40737285090907,
+        "gmv_trend": 0.08435232390455139
+      },
+      "last_updated": "2025-07-03T00:32:47.141628",
+      "credit_health": 0.2450215
+    },
+    {
+      "agent_id": "22030933",
+      "organization": "Sri Srinivas Tours & Travel",
+      "region": "Karnataka",
+      "credit_limit": 50000,
+      "credit_balance": 13560.74,
+      "classification": {
+        "tier": "P4",
+        "description": "Credit available but not used",
+        "action": "Educate / activate"
+      },
+      "metrics": {
+        "credit_utilization": 0.2712148,
+        "repayment_score": 90.37477298591897,
+        "gmv_trend": 0.03975251406528374
+      },
+      "last_updated": "2025-07-03T00:32:47.233446",
+      "credit_health": 0.2712148
+    },
+    {
+      "agent_id": "28309783",
+      "organization": "hampi travels",
+      "region": "Karnataka",
+      "credit_limit": 27000,
+      "credit_balance": 8275.85,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 0.306512962962963,
+        "repayment_score": 80.78515554991603,
+        "gmv_trend": 0.09055371684381414
+      },
+      "last_updated": "2025-07-03T00:32:47.137718",
+      "credit_health": 0.306512962962963
+    },
+    {
+      "agent_id": "25006165",
+      "organization": "Meghana Enterprises ",
+      "region": "Karnataka",
+      "credit_limit": 56000,
+      "credit_balance": 17233.3,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 0.3077375,
+        "repayment_score": 48.95741982068117,
+        "gmv_trend": 0.10971098439821897
+      },
+      "last_updated": "2025-07-03T00:32:47.159977",
+      "credit_health": 0.3077375
+    }
+  ],
+  "top_losers": [
+    {
+      "agent_id": "21425838",
+      "organization": "Santhosh Travels",
+      "region": "Karnataka",
+      "credit_limit": 37000,
+      "credit_balance": 37000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 79.68350160901456,
+        "gmv_trend": 0.06922969709355803
+      },
+      "last_updated": "2025-07-03T00:32:47.115098",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "23930517",
+      "organization": "Sri Kaarthikeya Travels",
+      "region": "Karnataka",
+      "credit_limit": 25000,
+      "credit_balance": 25000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 21.42649794904368,
+        "gmv_trend": 0.02114678637589415
+      },
+      "last_updated": "2025-07-03T00:32:47.117808",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "46923750",
+      "organization": "Pushpak tours",
+      "region": "Karnataka",
+      "credit_limit": 25000,
+      "credit_balance": 25000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 80.04754836233909,
+        "gmv_trend": 0.10247956156862387
+      },
+      "last_updated": "2025-07-03T00:32:47.117808",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "27053498",
+      "organization": "Arinant Travels",
+      "region": "Karnataka",
+      "credit_limit": 36000,
+      "credit_balance": 36000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 67.4095515795241,
+        "gmv_trend": 0.08099452964268405
+      },
+      "last_updated": "2025-07-03T00:32:47.120342",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "18022912",
+      "organization": "vinayaka tours travels",
+      "region": "Karnataka",
+      "credit_limit": 23750,
+      "credit_balance": 23750.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 15.458035149890836,
+        "gmv_trend": 0.1650259938194123
+      },
+      "last_updated": "2025-07-03T00:32:47.120342",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "25136118",
+      "organization": "Reshma Tourist and Travels",
+      "region": "Karnataka",
+      "credit_limit": 33000,
+      "credit_balance": 33000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 67.36509010369215,
+        "gmv_trend": 0.12961811117179256
+      },
+      "last_updated": "2025-07-03T00:32:47.120342",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "24896233",
+      "organization": "HANUMAN E-TICKETS",
+      "region": "Karnataka",
+      "credit_limit": 47000,
+      "credit_balance": 47000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 20.748751384959284,
+        "gmv_trend": 0.02868695703224225
+      },
+      "last_updated": "2025-07-03T00:32:47.121860",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "44428468",
+      "organization": "Sapthagiri Travel Links",
+      "region": "Karnataka",
+      "credit_limit": 15000,
+      "credit_balance": 15000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 74.93662503286292,
+        "gmv_trend": 0.15911793885543613
+      },
+      "last_updated": "2025-07-03T00:32:47.121860",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "19680801",
+      "organization": "surabhi enterprises",
+      "region": "Karnataka",
+      "credit_limit": 13000,
+      "credit_balance": 13000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 28.05995124738572,
+        "gmv_trend": -0.14898132883469134
+      },
+      "last_updated": "2025-07-03T00:32:47.121860",
+      "credit_health": 1.0
+    },
+    {
+      "agent_id": "20839864",
+      "organization": "Sri Manjunatha tours & travels",
+      "region": "Karnataka",
+      "credit_limit": 25000,
+      "credit_balance": 25000.0,
+      "classification": {
+        "tier": "P1",
+        "description": "Usage decline or slight delays",
+        "action": "Follow-up"
+      },
+      "metrics": {
+        "credit_utilization": 1.0,
+        "repayment_score": 25.922347259172806,
+        "gmv_trend": 0.017208742416360112
+      },
+      "last_updated": "2025-07-03T00:32:47.121860",
+      "credit_health": 1.0
+    }
+  ],
+  "insights": [
+    "213 agents analyzed. Average credit utilization is 88.2%.",
+    "180 agents (84.5%) have high credit utilization (>70%). Consider reviewing their credit limits."
+  ],
+  "timestamp": "2025-07-03T00:32:47.267626",
+  "status": "success"
+}

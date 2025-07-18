@@ -1,0 +1,1716 @@
+#!/usr/bin/env python3
+"""
+Windsurf Credit Health Intelligence Engine - Master Script
+
+A comprehensive command-line tool for running the complete credit health pipeline,
+including data validation, feature engineering, agent classification, and reporting.
+"""
+
+import os
+import sys
+import logging
+import argparse
+import json
+import logging
+import sys
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Dict, List, Any, Tuple, Union
+
+import pandas as pd
+from tqdm import tqdm
+
+# Configure root logger with null handler to prevent duplicate logs
+logging.basicConfig(handlers=[logging.NullHandler()])
+
+# Create custom logger
+logger = logging.getLogger('windsurf_credit')
+logger.setLevel(logging.INFO)
+
+# Create console handler with a higher log level
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Create file handler which logs even debug messages
+file_handler = logging.FileHandler('windsurf_credit.log')
+file_handler.setLevel(logging.DEBUG)
+
+# Create formatter and add it to the handlers
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+formatter = logging.Formatter(log_format)
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Add the handlers to the logger
+if not logger.handlers:  # Prevent adding handlers multiple times
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+# Constants
+DEFAULT_DATA_DIR = Path('data')
+DEFAULT_OUTPUT_DIR = Path('output')
+REQUIRED_DATA_FILES = [
+    'credit_Agents.xlsx',
+    'sales_data.xlsx',
+    'DPD.xlsx',
+    'Credit_sales_data.xlsx',
+    'Credit_history_sales_vs_credit_sales.xlsx'
+]
+
+# Import analysis modules
+from src.agent_classifier import AgentClassifier
+from src.feature_engineering import FeatureEngineer
+
+# Try to import GMV Analyzer
+GMV_ANALYZER_AVAILABLE = False
+GMVAnalyzer = None
+
+try:
+    # Check if matplotlib is available first
+    import matplotlib
+    # If we get here, matplotlib is available
+    from src.gmv_analyzer import GMVAnalyzer
+    GMV_ANALYZER_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    # If matplotlib or its dependencies are missing
+    logger.warning(f"GMV Analyzer not available due to missing dependencies: {str(e)}. Running in limited functionality mode.")
+    # Define a dummy GMVAnalyzer class if not available
+    class DummyGMVAnalyzer:
+        def __init__(self, *args, **kwargs):
+            pass
+        def analyze(self, *args, **kwargs):
+            return {}
+        
+    GMVAnalyzer = DummyGMVAnalyzer
+
+# Import local modules
+from lookup_agent_profiles import (
+    load_agents,
+    load_sales,
+    load_dpd,
+    load_repayment_metrics,
+    print_agent_profile,
+    AgentReporter
+)
+
+# Import data quality checker
+from src.data_quality_checks import DataQualityChecker
+
+# Constants
+VERSION = "1.0.0"
+REQUIRED_PYTHON = (3, 8)
+REQUIRED_PACKAGES = {
+    'pandas': '>=1.3.0',
+    'numpy': '>=1.21.0',
+    'openpyxl': '>=3.0.0',
+    'tqdm': '>=4.62.0',
+    'matplotlib': '>=3.4.0',
+    'scikit-learn': '>=1.0.0',
+    'scipy': '>=1.7.0',
+}
+
+# Default directories
+DEFAULT_REPORTS_DIR = DEFAULT_OUTPUT_DIR / 'reports'
+DEFAULT_CACHE_DIR = DEFAULT_OUTPUT_DIR / 'cache'
+
+# Data file patterns
+AGENT_DATA_PATTERN = '*agent*.csv'
+SALES_DATA_PATTERN = '*sale*.csv'
+DPD_DATA_PATTERN = '*dpd*.csv'
+REPAYMENT_DATA_PATTERN = '*repay*.csv'
+
+def setup_directories():
+    """Create necessary directories if they don't exist."""
+    for directory in [DEFAULT_DATA_DIR, DEFAULT_OUTPUT_DIR, DEFAULT_REPORTS_DIR, DEFAULT_CACHE_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+def find_data_files(directory: Path) -> Dict[str, Path]:
+    """
+    Find data files in the specified directory.
+    
+    Args:
+        directory: Directory to search for data files
+        
+    Returns:
+        Dictionary mapping file types to file paths
+    """
+    files = {}
+    patterns = {
+        'agents': AGENT_DATA_PATTERN,
+        'sales': SALES_DATA_PATTERN,
+        'dpd': DPD_DATA_PATTERN,
+        'repayment': REPAYMENT_DATA_PATTERN,
+    }
+    
+    for file_type, pattern in patterns.items():
+        matches = list(directory.glob(pattern))
+        if matches:
+            # Sort by modification time (newest first) and take the first match
+            latest_file = max(matches, key=lambda x: x.stat().st_mtime)
+            files[file_type] = latest_file
+    
+    return files
+
+
+def load_all_data(data_dir: Path, force_reload: bool = False) -> Dict[str, pd.DataFrame]:
+    """
+    Load all required data files.
+    
+    Args:
+        data_dir: Directory containing the data files
+        force_reload: If True, reload data even if cached
+        
+    Returns:
+        Dictionary containing loaded dataframes
+    """
+    cache_file = DEFAULT_CACHE_DIR / 'data_cache.pkl'
+    
+    # Try to load from cache if not forcing reload
+    if not force_reload and cache_file.exists():
+        try:
+            with open(cache_file, 'rb') as f:
+                return pd.read_pickle(f)
+        except Exception as e:
+            logger.warning(f"Failed to load cached data: {e}")
+    
+    # Find and load data files
+    data_files = find_data_files(data_dir)
+    if not data_files:
+        raise FileNotFoundError(f"No data files found in {data_dir}")
+    
+    data = {}
+    
+    # Load agent data
+    if 'agents' in data_files:
+        logger.info(f"Loading agent data from {data_files['agents']}")
+        data['agents'] = load_agents(data_files['agents'])
+    
+    # Load sales data
+    if 'sales' in data_files:
+        logger.info(f"Loading sales data from {data_files['sales']}")
+        data['sales'] = load_sales(data_files['sales'])
+    
+    # Load DPD data
+    if 'dpd' in data_files:
+        logger.info(f"Loading DPD data from {data_files['dpd']}")
+        data['dpd'] = load_dpd(data_files['dpd'])
+    
+    # Load repayment metrics
+    if 'repayment' in data_files:
+        logger.info(f"Loading repayment data from {data_files['repayment']}")
+        data['repayment'] = load_repayment_metrics(data_files['repayment'])
+    
+    # Cache the loaded data
+    try:
+        with open(cache_file, 'wb') as f:
+            pd.to_pickle(data, f)
+    except Exception as e:
+        logger.warning(f"Failed to cache data: {e}")
+    
+    return data
+
+
+def validate_data_quality(data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
+    """
+    Validate the quality of the loaded data.
+    
+    Args:
+        data: Dictionary containing dataframes
+        
+    Returns:
+        Dictionary with validation results
+    """
+    validation_results = {
+        'missing_files': [],
+        'empty_dataframes': [],
+        'missing_columns': {},
+        'data_quality_issues': {}
+    }
+    
+    # Check for missing data files
+    required_datasets = ['agents', 'sales', 'dpd', 'repayment']
+    for dataset in required_datasets:
+        if dataset not in data:
+            validation_results['missing_files'].append(dataset)
+    
+    # Check for empty dataframes
+    for name, df in data.items():
+        if df.empty:
+            validation_results['empty_dataframes'].append(name)
+    
+    # Define required columns for each dataset
+    required_columns = {
+        'agents': ['Bzid', 'account', 'credit_limit', 'credit_line_balance', 'region'],
+        'sales': ['account', 'date', 'amount', 'transaction_type'],
+        'dpd': ['account', 'dpd_days', 'as_of_date'],
+        'repayment': ['account', 'repayment_score', 'last_payment_date']
+    }
+    
+    # Check for missing columns
+    for name, df in data.items():
+        if name in required_columns:
+            missing = [col for col in required_columns[name] if col not in df.columns]
+            if missing:
+                validation_results['missing_columns'][name] = missing
+    
+    # Additional data quality checks
+    if 'agents' in data:
+        df = data['agents']
+        issues = []
+        
+        # Check for duplicate agent IDs
+        dupes = df['Bzid'].duplicated().sum()
+        if dupes > 0:
+            issues.append(f"{dupes} duplicate agent IDs found")
+        
+        # Check for missing credit limits
+        missing_limits = df['credit_limit'].isna().sum()
+        if missing_limits > 0:
+            issues.append(f"{missing_limits} agents with missing credit limits")
+        
+        if issues:
+            validation_results['data_quality_issues']['agents'] = issues
+    
+    return validation_results
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Windsurf Credit Health Intelligence Engine',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    
+    # Data source options
+    parser.add_argument(
+        '--data-dir',
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help='Directory containing input data files'
+    )
+    parser.add_argument(
+        '--output-dir',
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help='Directory for output files'
+    )
+    parser.add_argument(
+        '--reports-dir',
+        type=Path,
+        default=DEFAULT_REPORTS_DIR,
+        help='Directory for generated reports'
+    )
+    
+    # Processing options
+    parser.add_argument(
+        '--force-reload',
+        action='store_true',
+        help='Force reload of data instead of using cache'
+    )
+    parser.add_argument(
+        '--log-level',
+        default='INFO',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help='Set the logging level'
+    )
+    
+    # Operation modes
+    subparsers = parser.add_subparsers(dest='command', help='Operation to perform')
+    
+    # Agent analysis command
+    agent_parser = subparsers.add_parser('agent', help='Analyze a specific agent')
+    agent_parser.add_argument('agent_id', help='Agent ID to analyze')
+    
+    # Region analysis command
+    region_parser = subparsers.add_parser('region', help='Analyze a region')
+    region_parser.add_argument('region_name', help='Region name to analyze')
+    
+    # Full analysis command
+    full_parser = subparsers.add_parser('full', help='Run full analysis')
+    
+    # Interactive mode (default)
+    subparsers.add_parser('interactive', help='Run in interactive mode')
+    
+    args = parser.parse_args()
+    
+    # Set default command to interactive if none provided
+    if args.command is None:
+        args.command = 'interactive'
+    
+    return args
+
+
+def setup_logging(log_level=logging.INFO):
+    """Configure logging with both file and console handlers."""
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # File handler
+    log_file = DEFAULT_OUTPUT_DIR / 'windsurf_credit.log'
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    return logger
+
+
+def main():
+    """Main entry point for the script."""
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Set up logging
+    log_level = getattr(logging, args.log_level)
+    logger = setup_logging(log_level)
+    
+    # Set up directories
+    setup_directories()
+    
+    # Print banner
+    print_banner()
+    
+    try:
+        # Load data
+        logger.info("Loading data...")
+        data = load_all_data(args.data_dir, args.force_reload)
+        
+        # Validate data quality
+        validation_results = validate_data_quality(data)
+        
+        # Log validation results
+        if validation_results['missing_files']:
+            logger.warning(
+                f"Missing data files: {', '.join(validation_results['missing_files'])}"
+            )
+        
+        if validation_results['empty_dataframes']:
+            logger.warning(
+                f"Empty dataframes: {', '.join(validation_results['empty_dataframes'])}"
+            )
+        
+        if validation_results['missing_columns']:
+            for dataset, columns in validation_results['missing_columns'].items():
+                logger.warning(
+                    f"Missing columns in {dataset}: {', '.join(columns)}"
+                )
+        
+        # Initialize analyzers
+        gmv_analyzer = GMVAnalyzer(
+            data.get('sales', pd.DataFrame()),
+            date_column='date',
+            gmv_column='amount',
+            agent_column='account'
+        )
+        
+        feature_engineer = FeatureEngineer(data)
+        agent_classifier = AgentClassifier()
+        
+        # Execute command
+        if args.command == 'agent':
+            analyze_agent(args.agent_id, data, gmv_analyzer, agent_classifier, args)
+        elif args.command == 'region':
+            analyze_region(args.region_name, data, gmv_analyzer, agent_classifier, args)
+        elif args.command == 'full':
+            run_full_analysis(data, gmv_analyzer, agent_classifier, args)
+        elif args.command == 'interactive':
+            run_interactive(data, gmv_analyzer, agent_classifier, args)
+        
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}", exc_info=True)
+        return 1
+    
+    return 0
+
+
+def analyze_agent(agent_id, data, gmv_analyzer, agent_classifier, args):
+    """Analyze a single agent."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Analyzing agent {agent_id}...")
+    
+    # Get agent data
+    agents = data.get('agents', pd.DataFrame())
+    agent_data = agents[agents['Bzid'] == agent_id]
+    
+    if agent_data.empty:
+        logger.error(f"Agent {agent_id} not found")
+        return
+    
+    # Get GMV analysis
+    gmv_summary = gmv_analyzer.get_agent_gmv_summary(agent_id)
+    
+    # Generate features
+    features = feature_engineer.generate_features(agent_id)
+    
+    # Classify agent
+    classification = agent_classifier.classify_agent(features)
+    
+    # Generate report
+    report = {
+        'agent_id': agent_id,
+        'agent_data': agent_data.to_dict('records')[0],
+        'gmv_analysis': gmv_summary,
+        'features': features.to_dict(),
+        'classification': classification
+    }
+    
+    # Save report
+    report_file = args.reports_dir / f'agent_{agent_id}_report.json'
+    with open(report_file, 'w') as f:
+        json.dump(report, f, indent=2, default=str)
+    
+    logger.info(f"Report saved to {report_file}")
+    
+    # Print summary
+    print_agent_summary(agent_data, gmv_summary, classification)
+
+
+def analyze_region(region_name: str, data: Dict[str, pd.DataFrame], gmv_analyzer: GMVAnalyzer, 
+                 agent_classifier: AgentClassifier, args) -> Dict[str, Any]:
+    """
+    Analyze all agents in a specified region.
+    
+    Args:
+        region_name: Name of the region to analyze
+        data: Dictionary containing loaded dataframes
+        gmv_analyzer: GMVAnalyzer instance for GMV analysis
+        agent_classifier: AgentClassifier instance for agent classification
+        args: Command line arguments
+        
+    Returns:
+        Dictionary containing analysis results for the region
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Analyzing region: {region_name}")
+    
+    # Filter agents by region
+    agents = data.get('agents', pd.DataFrame())
+    region_agents = agents[agents['region'].str.lower() == region_name.lower()]
+    
+    if region_agents.empty:
+        logger.warning(f"No agents found in region: {region_name}")
+        return {}
+    
+    # Initialize results
+    results = []
+    
+    # Analyze each agent in the region
+    for _, agent in region_agents.iterrows():
+        agent_id = agent['Bzid']
+        try:
+            # Get GMV analysis
+            gmv_summary = gmv_analyzer.get_agent_gmv_summary(agent_id)
+            
+            # Generate features
+            feature_engineer = FeatureEngineer(
+                agents_df=data['agents'],
+                sales_df=data['sales'],
+                dpd_df=data['dpd'],
+                repayment_df=data['repayment']
+            )
+            features = feature_engineer.generate_features(agent_id)
+            
+            # Classify agent
+            classification = agent_classifier.classify_agent(features)
+            
+            # Add to results
+            results.append({
+                'agent_id': agent_id,
+                'gmv_summary': gmv_summary,
+                'classification': classification
+            })
+            
+            logger.info(f"Completed analysis for agent {agent_id}")
+            
+        except Exception as e:
+            logger.error(f"Error analyzing agent {agent_id}: {str(e)}")
+    
+    # Generate region report
+    report = {
+        'region': region_name,
+        'agent_count': len(results),
+        'analysis_date': datetime.now().isoformat(),
+        'agents': results
+    }
+    
+    # Save report
+    if not args.reports_dir.exists():
+        args.reports_dir.mkdir(parents=True, exist_ok=True)
+    
+    report_file = args.reports_dir / f"region_{region_name.lower().replace(' ', '_')}_report.json"
+    with open(report_file, 'w') as f:
+        json.dump(report, f, indent=2, default=str)
+    
+    logger.info(f"Region analysis complete. Report saved to {report_file}")
+    return report
+
+
+def print_banner():
+    """Print welcome banner."""
+    banner = """
+    ==================================================
+      Windsurf Credit Health Intelligence Engine
+    ==================================================
+    """
+    print(banner)
+
+
+def print_menu():
+    """Print main menu options."""
+    menu = """
+    [1] Look up agent
+    [2] Generate reports
+    [3] Run data validation
+    [4] Exit
+    """
+    print(menu)
+
+
+def interactive_mode(engine: 'CreditHealthEngine'):
+    """Run interactive command-line interface."""
+    print_banner()
+    
+    while True:
+        print_menu()
+        choice = input("Enter your choice (1-4): ").strip()
+        
+        if choice == '1':
+            agent_id = input("Enter agent ID: ").strip()
+            if not agent_id:
+                print("Error: Agent ID cannot be empty")
+                continue
+                
+            profile = engine.lookup_agent(agent_id)
+            if profile:
+                print("\nAgent Profile:")
+                print("-" * 50)
+                print_agent_profile(profile)
+                print("\n" + "-" * 50 + "\n")
+            else:
+                print(f"\nError: Could not find agent with ID {agent_id}\n")
+                
+        elif choice == '2':
+            output_dir = Path('output/reports')
+            success, message = engine.generate_reports(output_dir)
+            if success:
+                print(f"\nSuccess: {message}\n")
+            else:
+                print(f"\nError: {message}\n")
+                
+        elif choice == '3':
+            validator = DataValidator()
+            success, message = validator.run_validation()
+            print("\n" + "=" * 50)
+            print("DATA VALIDATION RESULTS")
+            print("=" * 50)
+            print(message)
+            print("=" * 50 + "\n")
+            
+        elif choice == '4':
+            print("\nThank you for using Windsurf Credit Health Intelligence Engine!")
+            break
+            
+        else:
+            print("\nInvalid choice. Please try again.\n")
+
+
+def print_agent_profile(profile):
+    """Print a formatted agent profile with detailed information."""
+    if not profile:
+        print("No profile data available.")
+        return
+    
+    # Print basic agent information
+    print("\n" + "=" * 80)
+    print(f"AGENT PROFILE: {profile['agent_id']}".center(80))
+    print("=" * 80)
+    
+    # Agent Information
+    print("\n[AGENT INFORMATION]")
+    print("-" * 50)
+    agent_data = profile.get('agent_data', {})
+    print(f"Name: {agent_data.get('Name', 'N/A')}")
+    print(f"Status: {agent_data.get('status', 'N/A')}")
+    print(f"Region: {agent_data.get('Region', 'N/A')}")
+    print(f"City: {agent_data.get('city', 'N/A')}")
+    
+    # Credit Information
+    print("\n[CREDIT STATUS]")
+    print("-" * 50)
+    credit = profile.get('credit_status', {})
+    print(f"Credit Limit: ₹{credit.get('credit_limit', 0):,.2f}")
+    print(f"Credit Used: ₹{credit.get('credit_used', 0):,.2f}")
+    print(f"Credit Utilization: {credit.get('credit_utilization', 0):.1f}%")
+    print(f"DPD Status: {credit.get('dpd_status', 'No DPD data')}")
+    print(f"Current DPD: {credit.get('current_dpd', 0)} days")
+    
+    # Sales Summary
+    print("\n[SALES SUMMARY]")
+    print("-" * 50)
+    sales = profile.get('sales_summary', {})
+    print(f"Total Sales: ₹{sales.get('total_sales', 0):,.2f}")
+    print(f"Number of Transactions: {sales.get('transaction_count', 0)}")
+    
+    # Recent Transactions
+    if sales.get('recent_transactions'):
+        print("\nRecent Transactions:")
+        for txn in sales['recent_transactions']:
+            print(f"  {txn.get('date', 'N/A')}: ₹{txn.get('amount', 0):,.2f}")
+    
+    # Repayment History
+    print("\n[REPAYMENT HISTORY]")
+    print("-" * 50)
+    repayments = profile.get('repayment_history', {})
+    print(f"Total Repayments: ₹{repayments.get('total_repayments', 0):,.2f}")
+    print(f"Number of Repayments: {repayments.get('repayment_count', 0)}")
+    
+    # Risk Assessment
+    print("\n[RISK ASSESSMENT]")
+    print("-" * 50)
+    risk = profile.get('risk_assessment', {})
+    print(f"Risk Level: {risk.get('risk_level', 'N/A')}")
+    print(f"Risk Score: {risk.get('risk_score', 0)}/100")
+    
+    if risk.get('risk_factors'):
+        print("\nRisk Factors:")
+        for factor in risk['risk_factors']:
+            print(f"  - {factor}")
+    
+    print("\n" + "=" * 80 + "\n")
+
+
+class CreditHealthEngine:
+    """Main engine for credit health analysis and reporting with integrated data auditing."""
+    
+    def __init__(self, data_dir: str = 'data', output_dir: str = 'output'):
+        """Initialize the credit health engine with data and output directories.
+        
+        Args:
+            data_dir: Directory containing input data files
+            output_dir: Base directory for output files and reports
+        """
+        self.data_dir = Path(data_dir)
+        self.output_dir = Path(output_dir)
+        self.reports_dir = self.output_dir / 'reports'
+        self.audit_dir = self.output_dir / 'audit'
+        self.cache_dir = self.output_dir / 'cache'
+        
+        # Initialize data storage
+        self.agents_df = None
+        self.sales_df = None
+        self.dpd_df = None
+        self.credit_sales_df = None
+        self.history_df = None
+        self.agent_reporter = None
+        self.validator = DataValidator()
+        
+        # Set up directories
+        self._setup_directories()
+    
+    def _setup_directories(self) -> None:
+        """Create necessary output directories if they don't exist."""
+        for directory in [self.output_dir, self.reports_dir, self.audit_dir, self.cache_dir]:
+            directory.mkdir(parents=True, exist_ok=True)
+    
+    def load_data(self, force_reload: bool = False) -> tuple[bool, str]:
+        """
+        Load all required data files with validation and caching.
+        
+        Args:
+            force_reload: If True, force reload data even if already loaded
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            # Only load if not already loaded or force_reload is True
+            if not force_reload and all(df is not None for df in 
+                                     [self.agents_df, self.sales_df, 
+                                      self.dpd_df, self.credit_sales_df]):
+                return True, "Using cached data"
+                
+            # Load data files
+            self.agents_df = pd.read_excel(self.data_dir / 'credit_Agents.xlsx')
+            self.sales_df = pd.read_excel(self.data_dir / 'sales_data.xlsx')
+            self.dpd_df = pd.read_excel(self.data_dir / 'DPD.xlsx')
+            self.credit_sales_df = pd.read_excel(self.data_dir / 'Credit_sales_data.xlsx')
+            self.history_df = pd.read_excel(self.data_dir / 'Credit_history_sales_vs_credit_sales.xlsx')
+            
+            # Initialize agent reporter with loaded data
+            self.agent_reporter = AgentReporter(
+                agents_df=self.agents_df,
+                sales_df=self.sales_df,
+                dpd_df=self.dpd_df,
+                repayment_df=self.credit_sales_df
+            )
+            
+            # Initialize validator with loaded data
+            self.validator = DataValidator()
+            self.validator.agents_df = self.agents_df
+            self.validator.sales_df = self.sales_df
+            self.validator.dpd_df = self.dpd_df
+            self.validator.credit_sales_df = self.credit_sales_df
+            self.validator.history_df = self.history_df
+            
+            return True, "Data loaded successfully"
+            
+        except Exception as e:
+            logger.error(f"Error loading data: {str(e)}")
+            return False, f"Error loading data: {str(e)}"
+    
+    def lookup_agent(self, agent_id: str) -> Optional[dict]:
+        """Look up agent details by ID with comprehensive profile and risk assessment.
+        
+        Args:
+            agent_id: The unique identifier for the agent
+            
+        Returns:
+            dict: Agent profile with detailed information or None if not found
+        """
+        try:
+            # Ensure data is loaded
+            if self.agent_reporter is None:
+                success, message = self.load_data()
+                if not success:
+                    logger.error(f"Failed to load data: {message}")
+                    return None
+            
+            # Generate agent profile
+            agent_profile = self.agent_reporter.generate_agent_profile(agent_id)
+            if not agent_profile:
+                logger.warning(f"No profile found for agent ID: {agent_id}")
+                return None
+                
+            # Add data quality information
+            if hasattr(self, 'last_audit_summary'):
+                agent_profile['_metadata'] = {
+                    'data_quality': {
+                        'last_audit_timestamp': self.last_audit_timestamp,
+                        'audit_summary': self.last_audit_summary
+                    }
+                }
+                
+            return agent_profile
+            
+        except Exception as e:
+            logger.error(f"Error looking up agent {agent_id}: {str(e)}")
+            return None
+    
+    def run_data_audit(self, output_report: bool = True) -> tuple[bool, str]:
+        """Run comprehensive data audit and generate report.
+        
+        Args:
+            output_report: If True, save audit report to file
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            # Ensure data is loaded
+            success, message = self.load_data()
+            if not success:
+                return False, f"Failed to load data for audit: {message}"
+            
+            # Run the audit
+            success, result = self.validator.run_audit()
+            if not success:
+                return False, f"Audit failed: {result}"
+            
+            # Save audit results
+            self.last_audit_summary = result
+            self.last_audit_timestamp = datetime.now().isoformat()
+            
+            if output_report:
+                # Save detailed audit report
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                report_path = self.audit_dir / f"data_audit_{timestamp}.json"
+                self.validator.save_audit_report(self.audit_dir)
+                
+                # Also save a human-readable version
+                txt_report_path = self.audit_dir / f"data_audit_{timestamp}.txt"
+                with open(txt_report_path, 'w') as f:
+                    f.write(result)
+                
+                return True, f"Audit completed successfully. Report saved to {report_path}"
+            
+            return True, "Audit completed successfully"
+            
+        except Exception as e:
+            error_msg = f"Error during data audit: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def generate_reports(self, output_dir: Optional[Path] = None) -> tuple[bool, str]:
+        """Generate comprehensive reports for all agents and overall summary.
+        
+        Args:
+            output_dir: Directory to save reports (defaults to self.reports_dir)
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            # Set output directory
+            if output_dir is None:
+                output_dir = self.reports_dir
+            else:
+                output_dir = Path(output_dir)
+                
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Ensure data is loaded
+            success, message = self.load_data()
+            if not success:
+                return False, f"Failed to load data: {message}"
+            
+            # Generate timestamp for report naming
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # 1. Generate agent reports
+            agent_reports_dir = output_dir / 'agent_reports'
+            agent_reports_dir.mkdir(exist_ok=True)
+            
+            agent_summaries = []
+            total_agents = len(self.agents_df) if self.agents_df is not None else 0
+            
+            if total_agents == 0:
+                return False, "No agent data available to generate reports"
+                
+            logger.info(f"Generating reports for {total_agents} agents...")
+            
+            for idx, agent_id in enumerate(self.agents_df['Bzid'].unique(), 1):
+                try:
+                    profile = self.lookup_agent(agent_id)
+                    if profile:
+                        # Save detailed agent report
+                        report_file = agent_reports_dir / f"agent_{agent_id}_report.json"
+                        with open(report_file, 'w') as f:
+                            json.dump(profile, f, indent=2)
+                        
+                        # Add to summary
+                        agent_summary = {
+                            'agent_id': agent_id,
+                            'name': profile.get('agent_data', {}).get('Name', 'N/A'),
+                            'region': profile.get('agent_data', {}).get('Region', 'N/A'),
+                            'credit_limit': profile.get('credit_status', {}).get('credit_limit', 0),
+                            'credit_used': profile.get('credit_status', {}).get('credit_used', 0),
+                            'dpd_status': profile.get('credit_status', {}).get('dpd_status', 'N/A'),
+                            'risk_level': profile.get('risk_assessment', {}).get('risk_level', 'UNKNOWN'),
+                            'risk_score': profile.get('risk_assessment', {}).get('risk_score', 0),
+                            'report_generated': True,
+                            'report_path': str(report_file.relative_to(output_dir))
+                        }
+                        agent_summaries.append(agent_summary)
+                        
+                    if idx % 100 == 0 or idx == total_agents:
+                        logger.info(f"Processed {idx}/{total_agents} agents...")
+                        
+                except Exception as e:
+                    logger.error(f"Error generating report for agent {agent_id}: {str(e)}")
+                    continue
+            
+            # 2. Generate summary report
+            summary_report = {
+                'timestamp': datetime.now().isoformat(),
+                'total_agents': len(self.agents_df),
+                'agents_with_reports': len(agent_summaries),
+                'total_sales': len(self.sales_df),
+                'total_credit_sales': len(self.credit_sales_df),
+                'report_generated': True,
+                'agent_summaries': agent_summaries,
+                'data_quality': {
+                    'last_audit_timestamp': getattr(self, 'last_audit_timestamp', None),
+                    'audit_summary': getattr(self, 'last_audit_summary', 'No audit performed yet')
+                }
+            }
+            
+            # Save summary report
+            summary_file = output_dir / f'summary_report_{timestamp}.json'
+            with open(summary_file, 'w') as f:
+                json.dump(summary_report, f, indent=2)
+            
+            # 3. Generate region-wise summary if we have agent data
+            region_summary = {}
+            for agent in agent_summaries:
+                region = agent.get('region', 'Unknown')
+                if region not in region_summary:
+                    region_summary[region] = {
+                        'agent_count': 0,
+                        'total_credit_limit': 0,
+                        'total_credit_used': 0,
+                        'risk_distribution': {},
+                        'agents': []
+                    }
+                
+                region_data = region_summary[region]
+                region_data['agent_count'] += 1
+                region_data['total_credit_limit'] += agent.get('credit_limit', 0)
+                region_data['total_credit_used'] += agent.get('credit_used', 0)
+                
+                risk_level = agent.get('risk_level', 'UNKNOWN')
+                region_data['risk_distribution'][risk_level] = region_data['risk_distribution'].get(risk_level, 0) + 1
+                
+                # Add agent to region
+                region_data['agents'].append({
+                    'agent_id': agent.get('agent_id', ''),
+                    'name': agent.get('name', 'Unknown'),
+                    'risk_level': risk_level,
+                    'risk_score': agent.get('risk_score', 0)
+                })
+            
+            # Save region summary if we have data
+            region_summary_file = None
+            if region_summary:
+                region_summary_file = output_dir / f'region_summary_{timestamp}.json'
+                with open(region_summary_file, 'w') as f:
+                    json.dump(region_summary, f, indent=2)
+            
+            # Prepare success message
+            message_parts = [
+                f"Successfully generated reports in {output_dir}",
+                f"- Agent reports: {len(agent_summaries)} generated"
+            ]
+            
+            if 'summary_file' in locals():
+                message_parts.append(f"- Summary report: {summary_file}")
+                
+            if region_summary_file:
+                message_parts.append(f"- Region summary: {region_summary_file}")
+                
+            # Add GMV analysis status if available
+            if GMV_ANALYZER_AVAILABLE:
+                message_parts.append("- GMV analysis: Included")
+            else:
+                message_parts.append("- GMV analysis: Not available (optional dependency missing)")
+            
+            return True, "\n".join(message_parts)
+            
+        except Exception as e:
+            error_msg = f"Error generating reports: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+
+
+class AgentReporter:
+    """Generate agent reports."""
+    
+    def __init__(self, agents_df, sales_df, dpd_df, repayment_df):
+        self.agents_df = agents_df
+        self.sales_df = sales_df
+        self.dpd_df = dpd_df
+        self.repayment_df = repayment_df
+    
+    def generate_agent_profile(self, agent_id):
+        """Generate agent profile."""
+        try:
+            agent_data = self.agents_df[self.agents_df['Bzid'] == agent_id]
+            if agent_data.empty:
+                logger.warning(f"No agent found with ID: {agent_id}")
+                return None
+                
+            sales_data = self.sales_df[self.sales_df['account'] == agent_id]
+            dpd_data = self.dpd_df[self.dpd_df['Bzid'] == agent_id]
+            repayment_data = self.repayment_df[self.repayment_df['account'] == agent_id]
+            
+            profile = {
+                'agent_id': agent_id,
+                'agent_data': agent_data.iloc[0].to_dict(),
+                'sales_summary': {
+                    'total_sales': float(sales_data['amount'].sum() if not sales_data.empty else 0),
+                    'transaction_count': len(sales_data),
+                    'recent_transactions': sales_data.sort_values('date', ascending=False).head(5).to_dict('records')
+                },
+                'credit_status': {
+                    'dpd_status': dpd_data['status'].iloc[0] if not dpd_data.empty else 'No DPD data',
+                    'current_dpd': float(dpd_data['dpd'].iloc[0]) if not dpd_data.empty else 0,
+                    'credit_limit': float(agent_data['Credit Limit'].iloc[0]) if 'Credit Limit' in agent_data.columns else 0,
+                    'credit_used': float(agent_data['Credit Line Balance'].iloc[0]) if 'Credit Line Balance' in agent_data.columns else 0,
+                    'credit_utilization': (float(agent_data['Credit Line Balance'].iloc[0]) / float(agent_data['Credit Limit'].iloc[0]) * 100 
+                                         if 'Credit Line Balance' in agent_data.columns and 'Credit Limit' in agent_data.columns 
+                                         and float(agent_data['Credit Limit'].iloc[0]) > 0 else 0)
+                },
+                'repayment_history': {
+                    'total_repayments': float(repayment_data['amount'].sum() if not repayment_data.empty else 0),
+                    'repayment_count': len(repayment_data),
+                    'recent_repayments': repayment_data.sort_values('date', ascending=False).head(5).to_dict('records')
+                },
+                'risk_assessment': self._calculate_risk_assessment(agent_data, dpd_data, repayment_data)
+            }
+            
+            return profile
+            
+        except Exception as e:
+            logger.error(f"Error generating profile for agent {agent_id}: {str(e)}")
+            return None
+    
+    def _calculate_risk_assessment(self, agent_data, dpd_data, repayment_data):
+        """Calculate risk assessment metrics for the agent."""
+        risk_score = 0
+        risk_factors = []
+        
+        # Check DPD status
+        if not dpd_data.empty and 'status' in dpd_data.columns:
+            dpd_status = dpd_data['status'].iloc[0]
+            if dpd_status == 'Overdue':
+                risk_score += 30
+                risk_factors.append('Account is overdue')
+            
+            # Check DPD days
+            if 'dpd' in dpd_data.columns:
+                dpd_days = float(dpd_data['dpd'].iloc[0])
+                if dpd_days > 30:
+                    risk_score += 40
+                    risk_factors.append(f'High DPD ({dpd_days} days)')
+                elif dpd_days > 15:
+                    risk_score += 20
+                    risk_factors.append(f'Moderate DPD ({dpd_days} days)')
+        
+        # Check credit utilization
+        if 'Credit Line Balance' in agent_data.columns and 'Credit Limit' in agent_data.columns:
+            try:
+                utilization = (float(agent_data['Credit Line Balance'].iloc[0]) / 
+                             float(agent_data['Credit Limit'].iloc[0]) * 100)
+                if utilization > 90:
+                    risk_score += 30
+                    risk_factors.append(f'High credit utilization ({utilization:.1f}%)')
+                elif utilization > 70:
+                    risk_score += 15
+                    risk_factors.append(f'Moderate credit utilization ({utilization:.1f}%)')
+            except (ValueError, IndexError, ZeroDivisionError):
+                pass
+        
+        # Check repayment history
+        if not repayment_data.empty:
+            late_payments = repayment_data[repayment_data['status'] == 'late']
+            if not late_payments.empty:
+                risk_score += len(late_payments) * 5
+                risk_factors.append(f'{len(late_payments)} late payment(s)')
+        
+        # Determine risk level
+        if risk_score >= 70:
+            risk_level = 'High Risk'
+        elif risk_score >= 40:
+            risk_level = 'Medium Risk'
+        else:
+            risk_level = 'Low Risk'
+        
+        return {
+            'risk_score': min(100, risk_score),  # Cap at 100
+            'risk_level': risk_level,
+            'risk_factors': risk_factors if risk_factors else ['No significant risk factors identified']
+        }
+
+
+class DependencyChecker:
+    """Check system and Python dependencies."""
+    
+    @classmethod
+    def check_python_version(cls):
+        """Check if the Python version meets requirements."""
+        if sys.version_info < REQUIRED_PYTHON:
+            version_str = '.'.join(map(str, REQUIRED_PYTHON))
+            return False, f"Python {version_str} or later is required"
+        return True, "Python version OK"
+    
+    @classmethod
+    def check_packages(cls):
+        """Check if required Python packages are installed."""
+        missing_pkgs = []
+        for pkg, version in REQUIRED_PACKAGES.items():
+            try:
+                if '>=' in version:
+                    min_version = version.lstrip('>=')
+                    pkg_version = importlib.metadata.version(pkg)
+                    if pkg_version < min_version:
+                        missing_pkgs.append(f"{pkg}>={min_version} (found {pkg_version})")
+                else:
+                    importlib.metadata.version(pkg)
+            except importlib.metadata.PackageNotFoundError:
+                missing_pkgs.append(f"{pkg}{version}")
+        
+        if missing_pkgs:
+            return False, f"Missing or outdated packages: {', '.join(missing_pkgs)}"
+        return True, "All required packages are installed"
+    
+    @classmethod
+    def check_data_files(cls, data_dir):
+        """Check if required data files exist."""
+        missing_files = []
+        for file_type, pattern in REQUIRED_DATA_FILES.items():
+            if not list(data_dir.glob(pattern)):
+                missing_files.append(pattern)
+        
+        if missing_files:
+            return False, f"Missing data files: {', '.join(missing_files)}"
+        return True, "All required data files found"
+    
+    @classmethod
+    def run_checks(cls, data_dir):
+        """Run all dependency checks and return results."""
+        checks = [
+            ("Python Version", cls.check_python_version()),
+            ("Python Packages", cls.check_packages()),
+            ("Data Files", cls.check_data_files(data_dir))
+        ]
+        
+        results = []
+        all_ok = True
+        
+        for name, (success, message) in checks:
+            status = "[OK]" if success else "[ERROR]"
+            results.append(f"{status} {name}: {message}")
+            if not success:
+                all_ok = False
+        
+        return all_ok, "\n".join(results)
+
+
+class DataValidator:
+    """Validate data integrity and quality with comprehensive data audit."""
+    
+    def __init__(self):
+        self.agents_df = None
+        self.sales_df = None
+        self.dpd_df = None
+        self.credit_sales_df = None
+        self.history_df = None
+        self.audit_results = {}
+    
+    def load_data(self) -> tuple[bool, str]:
+        """Load all required data files with basic validation."""
+        try:
+            self.agents_df = pd.read_excel('data/credit_Agents.xlsx')
+            self.sales_df = pd.read_excel('data/sales_data.xlsx')
+            self.dpd_df = pd.read_excel('data/DPD.xlsx')
+            self.credit_sales_df = pd.read_excel('data/Credit_sales_data.xlsx')
+            self.history_df = pd.read_excel('data/Credit_history_sales_vs_credit_sales.xlsx')
+            
+            # Store basic metadata
+            self.audit_results['data_loaded'] = True
+            self.audit_results['record_counts'] = {
+                'agents': len(self.agents_df),
+                'sales': len(self.sales_df),
+                'dpd': len(self.dpd_df),
+                'credit_sales': len(self.credit_sales_df),
+                'history': len(self.history_df)
+            }
+            
+            return True, "Data loaded successfully"
+        except Exception as e:
+            self.audit_results['data_loaded'] = False
+            self.audit_results['load_error'] = str(e)
+            return False, f"Error loading data: {str(e)}"
+    
+    def _check_missing_values(self) -> dict:
+        """Check for missing values across all dataframes."""
+        results = {}
+        for name, df in [("agents", self.agents_df), 
+                        ("sales", self.sales_df), 
+                        ("dpd", self.dpd_df), 
+                        ("credit_sales", self.credit_sales_df),
+                        ("history", self.history_df)]:
+            if df is not None:
+                missing = df.isnull().sum()
+                missing_pct = (missing / len(df)) * 100
+                results[name] = {
+                    'total_rows': len(df),
+                    'missing_columns': {},
+                    'missing_total': int(missing.sum()),
+                    'missing_pct': float(missing_pct.mean())
+                }
+                
+                for col, count in missing[missing > 0].items():
+                    results[name]['missing_columns'][col] = {
+                        'count': int(count),
+                        'pct': float(missing_pct[col])
+                    }
+        
+        self.audit_results['missing_values'] = results
+        return results
+    
+    def _check_data_types(self) -> dict:
+        """Verify data types of critical columns."""
+        type_checks = {
+            'agents': {
+                'Bzid': ['int64', 'float64'],
+                'Credit Limit': ['float64', 'int64'],
+                'Credit Line Balance': ['float64', 'int64']
+            },
+            'sales': {
+                'account': ['int64', 'float64'],
+                'amount': ['float64', 'int64'],
+                'date': ['datetime64[ns]']
+            },
+            'dpd': {
+                'Bzid': ['int64', 'float64'],
+                'DPD': ['int64', 'float64'],
+                'status': ['object']
+            }
+        }
+        
+        results = {}
+        for df_name, columns in type_checks.items():
+            df = getattr(self, f"{df_name}_df", None)
+            if df is not None:
+                results[df_name] = {}
+                for col, expected_types in columns.items():
+                    if col in df.columns:
+                        actual_type = str(df[col].dtype)
+                        results[df_name][col] = {
+                            'expected': expected_types,
+                            'actual': actual_type,
+                            'valid': actual_type in expected_types
+                        }
+        
+        self.audit_results['data_types'] = results
+        return results
+    
+    def _check_data_ranges(self) -> dict:
+        """Check for values outside expected ranges."""
+        range_checks = {
+            'agents': {
+                'Credit Limit': {'min': 0},
+                'Credit Line Balance': {'min': 0}
+            },
+            'dpd': {
+                'DPD': {'min': 0}
+            },
+            'sales': {
+                'amount': {'min': 0}
+            }
+        }
+        
+        results = {}
+        for df_name, columns in range_checks.items():
+            df = getattr(self, f"{df_name}_df", None)
+            if df is not None:
+                results[df_name] = {}
+                for col, constraints in columns.items():
+                    if col in df.columns:
+                        col_results = {}
+                        if 'min' in constraints:
+                            below_min = (df[col] < constraints['min']).sum()
+                            col_results['below_min'] = int(below_min)
+                        if 'max' in constraints:
+                            above_max = (df[col] > constraints['max']).sum()
+                            col_results['above_max'] = int(above_max)
+                        
+                        if col_results:
+                            results[df_name][col] = col_results
+        
+        self.audit_results['data_ranges'] = results
+        return results
+    
+    def _check_duplicates(self) -> dict:
+        """Check for duplicate records."""
+        results = {}
+        for name, df in [("agents", self.agents_df), 
+                        ("sales", self.sales_df), 
+                        ("dpd", self.dpd_df), 
+                        ("credit_sales", self.credit_sales_df),
+                        ("history", self.history_df)]:
+            if df is not None:
+                duplicates = df.duplicated().sum()
+                results[name] = {
+                    'total_duplicates': int(duplicates),
+                    'duplicate_pct': float(duplicates / len(df) * 100) if len(df) > 0 else 0.0
+                }
+        
+        self.audit_results['duplicates'] = results
+        return results
+    
+    def _check_referential_integrity(self) -> dict:
+        """Verify referential integrity between tables."""
+        results = {}
+        
+        # Check if agent IDs in sales exist in agents
+        if self.agents_df is not None and self.sales_df is not None:
+            valid_agents = set(self.agents_df['Bzid'].unique())
+            sales_agents = set(self.sales_df['account'].dropna().unique())
+            invalid_sales_agents = sales_agents - valid_agents
+            
+            results['sales_agents'] = {
+                'total_sales_agents': len(sales_agents),
+                'invalid_agents': int(len(invalid_sales_agents)),
+                'invalid_agent_pct': float(len(invalid_sales_agents) / len(sales_agents) * 100) if sales_agents else 0.0
+            }
+        
+        self.audit_results['referential_integrity'] = results
+        return results
+    
+    def save_audit_report(self, output_dir: Path) -> Path:
+        """Save audit results to a JSON file."""
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = output_dir / f"data_audit_{timestamp}.json"
+        
+        with open(report_path, 'w') as f:
+            json.dump(self.audit_results, f, indent=2, default=str)
+        
+        return report_path
+    
+    def generate_audit_summary(self) -> tuple[bool, str]:
+        """Generate a human-readable summary of the audit results."""
+        if not self.audit_results:
+            return False, "No audit results available. Run audit first."
+        
+        summary = []
+        summary.append("="*50)
+        summary.append("DATA AUDIT SUMMARY")
+        summary.append("="*50)
+        
+        # Record counts
+        if 'record_counts' in self.audit_results:
+            summary.append("\nRECORD COUNTS:")
+            for name, count in self.audit_results['record_counts'].items():
+                summary.append(f"  - {name.replace('_', ' ').title()}: {count:,}")
+        
+        # Missing values summary
+        if 'missing_values' in self.audit_results:
+            summary.append("\nMISSING VALUES SUMMARY:")
+            for name, data in self.audit_results['missing_values'].items():
+                if data['missing_total'] > 0:
+                    summary.append(f"  - {name.title()}:")
+                    for col, col_data in data['missing_columns'].items():
+                        summary.append(f"    - {col}: {col_data['count']:,} ({col_data['pct']:.1f}%)")
+                else:
+                    summary.append(f"  - {name.title()}: No missing values")
+        
+        # Data type issues
+        if 'data_types' in self.audit_results:
+            type_issues = []
+            for name, columns in self.audit_results['data_types'].items():
+                for col, type_info in columns.items():
+                    if not type_info['valid']:
+                        type_issues.append(f"  - {name}.{col}: Expected {type_info['expected']}, got {type_info['actual']}")
+            
+            if type_issues:
+                summary.append("\nDATA TYPE ISSUES:" + "\n" + "\n".join(type_issues))
+        
+        # Data range issues
+        if 'data_ranges' in self.audit_results:
+            range_issues = []
+            for name, columns in self.audit_results['data_ranges'].items():
+                for col, issues in columns.items():
+                    for issue, count in issues.items():
+                        if count > 0:
+                            range_issues.append(f"  - {name}.{col}: {count:,} values {issue.replace('_', ' ')}")
+            
+            if range_issues:
+                summary.append("\nDATA RANGE ISSUES:" + "\n" + "\n".join(range_issues))
+        
+        # Duplicates
+        if 'duplicates' in self.audit_results:
+            dup_issues = []
+            for name, dup_data in self.audit_results['duplicates'].items():
+                if dup_data['total_duplicates'] > 0:
+                    dup_issues.append(f"  - {name}: {dup_data['total_duplicates']:,} duplicates ({dup_data['duplicate_pct']:.1f}%)")
+            
+            if dup_issues:
+                summary.append("\nDUPLICATE RECORDS:" + "\n" + "\n".join(dup_issues))
+        
+        # Referential integrity
+        if 'referential_integrity' in self.audit_results:
+            ref_issues = []
+            for check, result in self.audit_results['referential_integrity'].items():
+                if result.get('invalid_agents', 0) > 0:
+                    ref_issues.append(
+                        f"  - {check}: {result['invalid_agents']:,} invalid agent references "
+                        f"({result['invalid_agent_pct']:.1f}% of {result['total_sales_agents']})"
+                    )
+            
+            if ref_issues:
+                summary.append("\nREFERENTIAL INTEGRITY ISSUES:" + "\n" + "\n".join(ref_issues))
+        
+        return True, "\n".join(summary)
+    
+    def run_audit(self) -> tuple[bool, str]:
+        """Run complete data audit."""
+        try:
+            # Load data if not already loaded
+            if not hasattr(self, 'audit_results') or not self.audit_results.get('data_loaded'):
+                success, message = self.load_data()
+                if not success:
+                    return False, f"Data loading failed: {message}"
+            
+            # Run all audit checks
+            self._check_missing_values()
+            self._check_data_types()
+            self._check_data_ranges()
+            self._check_duplicates()
+            self._check_referential_integrity()
+            
+            # Generate and return summary
+            success, summary = self.generate_audit_summary()
+            return success, summary
+            
+        except Exception as e:
+            return False, f"Error during data audit: {str(e)}"
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Windsurf Credit Health Engine - Unified Runner',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    
+    # Main execution modes
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '--pipeline',
+        action='store_true',
+        help='Run the complete credit health pipeline (default)'
+    )
+    group.add_argument(
+        '--agent',
+        type=str,
+        help='Get summary for a specific agent by ID (Bzid)'
+    )
+    
+    # Optional arguments
+    parser.add_argument(
+        '--data-dir',
+        type=Path,
+        default=Path('data/raw'),
+        help='Directory containing input data files'
+    )
+    parser.add_argument(
+        '--output-dir',
+        type=Path,
+        default=Path('output'),
+        help='Directory for output reports and summaries'
+    )
+    parser.add_argument(
+        '--skip-checks',
+        action='store_true',
+        help='Skip environment and dependency checks'
+    )
+    parser.add_argument(
+        '--reload',
+        action='store_true',
+        help='Force reload of all data (ignore cache)'
+    )
+    parser.add_argument(
+        '--export-json',
+        action='store_true',
+        help='Export agent summaries as JSON'
+    )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug logging'
+    )
+    
+    parser.set_defaults(pipeline=True)
+    return parser.parse_args()
+
+
+def run_checks(args) -> bool:
+    """Run all environment and dependency checks."""
+    logger.info("\n" + "="*50)
+    logger.info("  WINDSURF CREDIT HEALTH ENGINE - PRE-FLIGHT CHECKS")
+    logger.info("="*50)
+    
+    checker = DependencyChecker()
+    all_checks_passed = True
+    
+    # Check Python version
+    logger.info("\n[1/3] Checking Python version...")
+    if not checker.check_python_version():
+        all_checks_passed = False
+    
+    # Check packages
+    logger.info("\n[2/3] Checking package dependencies...")
+    if not checker.check_packages():
+        all_checks_passed = False
+    
+    # Check data files
+    logger.info("\n[3/3] Checking data files...")
+    if not checker.check_data_files(args.data_dir):
+        all_checks_passed = False
+    
+    if all_checks_passed:
+        logger.info("\n✅ All pre-flight checks passed!")
+    else:
+        logger.error("\n❌ Some pre-flight checks failed. Please check the logs above.")
+    
+    return all_checks_passed
+
+
+def run_pipeline(args):
+    """Execute the complete credit health pipeline."""
+    logger.info("\n🚀 Starting credit health pipeline...")
+    
+    try:
+        # Load all data
+        data = DataLoader.load_all(args.data_dir, force_reload=args.reload)
+        
+        # Ensure output directory exists
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # TODO: Implement pipeline steps
+        logger.info("Pipeline execution will be implemented in the next phase.")
+        
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {str(e)}")
+        if args.debug:
+            import traceback
+            logger.error(traceback.format_exc())
+        raise
+
+def lookup_agent(agent_id: str, args) -> None:
+    """Look up and display agent details."""
+    try:
+        logger.info(f"\n[SEARCH] Looking up agent {agent_id}...")
+        
+        # Load data
+        data = DataLoader.load_all(args.data_dir, force_reload=args.reload)
+        
+        # Find agent data - handle both 'Bzid' and 'BZID' column names
+        agents_df = data['agents']
+        id_column = 'Bzid' if 'Bzid' in agents_df.columns else 'BZID'
+        
+        agent_data = agents_df[agents_df[id_column].astype(str) == str(agent_id)]
+        if agent_data.empty:
+            logger.error(f"Agent {agent_id} not found")
+            return
+        
+        # Convert to dict for the reporter
+        agent_dict = agent_data.iloc[0].to_dict()
+        
+        # Create and run reporter
+        reporter = AgentReporter(agent_dict)
+        reporter.analyze_credit_utilization()
+        # Add more analysis methods as needed
+        
+        # Print the profile
+        print_agent_profile(agent_id, agent_dict, {
+            'metrics': reporter.metrics,
+            'assessments': reporter.assessments,
+            'findings': reporter.findings,
+            'recommendations': reporter.recommendations
+        })
+        
+        # Export to JSON if requested
+        if args.export_json:
+            export_path = args.output_dir / f"agent_{agent_id}_profile.json"
+            with open(export_path, 'w') as f:
+                json.dump({
+                    'agent_id': agent_id,
+                    'profile': agent_dict,
+                    'analysis': {
+                        'metrics': reporter.metrics,
+                        'assessments': reporter.assessments,
+                        'findings': reporter.findings,
+                        'recommendations': reporter.recommendations
+                    },
+                    'generated_at': datetime.now().isoformat()
+                }, f, indent=2, default=str)
+            logger.info(f"Profile exported to {export_path}")
+            
+    except Exception as e:
+        logger.error(f"Agent lookup failed: {str(e)}")
+        if args.debug:
+            import traceback
+            logger.error(traceback.format_exc())
+        raise
+
+def prompt_agent_id() -> str:
+    """Prompt the user to enter an agent ID interactively."""
+    while True:
+        try:
+            agent_id = input("\n🔍 Enter agent ID (or 'q' to quit): ").strip()
+            if agent_id.lower() == 'q':
+                logger.info("Exiting...")
+                sys.exit(0)
+                
+            if not agent_id:
+                logger.warning("Agent ID cannot be empty. Please try again.")
+                continue
+                
+            # Basic validation - ensure it's a number
+            try:
+                int(agent_id)
+                return agent_id
+            except ValueError:
+                logger.warning("Agent ID must be a number. Please try again.")
+                
+        except KeyboardInterrupt:
+            logger.info("\nOperation cancelled by user.")
+            sys.exit(0)
+        except Exception as e:
+            logger.error(f"Error: {str(e)}")
+            continue
+
+def interactive_lookup(args):
+    """Run in interactive mode, allowing multiple agent lookups."""
+    logger.info("\n" + "="*50)
+    logger.info("  WINDSURF CREDIT HEALTH ENGINE - INTERACTIVE MODE")
+    logger.info("="*50)
+    logger.info("\nEnter an agent ID to view their profile or 'q' to quit.")
+    
+    # Load data once at the start
+    data = DataLoader.load_all(args.data_dir, force_reload=args.reload)
+    
+    while True:
+        agent_id = prompt_agent_id()
+        try:
+            lookup_agent(agent_id, args)
+        except Exception as e:
+            logger.error(f"Failed to look up agent: {str(e)}")
+            if args.debug:
+                import traceback
+                logger.error(traceback.format_exc())
+
+def main():
+    """Main entry point for the script."""
+    try:
+        args = parse_arguments()
+        
+        # Set debug logging if requested
+        if args.debug:
+            logger.setLevel(logging.DEBUG)
+            for handler in logger.handlers:
+                handler.setLevel(logging.DEBUG)
+        
+        # Run pre-flight checks unless skipped
+        if not args.skip_checks and not run_checks(args):
+            sys.exit(1)
+        
+        # Create output directory if it doesn't exist
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Execute the requested command
+        if args.agent:
+            lookup_agent(args.agent, args)
+        else:
+            # If no agent ID provided, enter interactive mode
+            interactive_lookup(args)
+            
+        logger.info("\n✅ Operation completed successfully!")
+        
+    except KeyboardInterrupt:
+        logger.warning("\n⚠️  Operation cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"\n❌ An error occurred: {str(e)}")
+        if args and args.debug:
+            import traceback
+            logger.error(traceback.format_exc())
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

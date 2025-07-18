@@ -4,13 +4,37 @@ Agent Profile Lookup Tool
 This script provides an interactive interface to look up agent profiles
 and display their credit risk analysis.
 """
+
+import os
+import sys
+import logging
 import pandas as pd
 import numpy as np
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Union, Any
 from enum import Enum, auto
-import os
+from datetime import datetime, timedelta
+import json
+import re
+import math
+from tabulate import tabulate
+from colorama import init, Fore, Style
+
+# Import agent classifier
+from src.agent_classifier import AgentClassifier
+
+# Initialize colorama
+init()
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('agent_lookup.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Ensure output directory exists
 os.makedirs('output', exist_ok=True)
@@ -33,163 +57,1084 @@ class AgentReporter:
         self.findings = []
         self.recommendations = []
     
+    def calculate_credit_usage_trend(self) -> Dict[str, Any]:
+        """Calculate credit usage trend over time.
+        
+        Returns:
+            Dict containing trend analysis with:
+            - trend: 'increasing', 'decreasing', or 'stable'
+            - rate: Monthly change rate
+            - months: Number of months of data
+            - confidence: Confidence level of the trend (0-1)
+        """
+        # Default values if no trend data is available
+        default_trend = {
+            'trend': 'stable',
+            'rate': 0.0,
+            'months': 0,
+            'confidence': 0.0
+        }
+        
+        try:
+            # Check if we have historical credit usage data
+            if 'credit_history' not in self.agent_data or not self.agent_data['credit_history']:
+                return default_trend
+                
+            # Get historical credit usage (assuming list of {'date': 'YYYY-MM-DD', 'balance': float})
+            history = sorted(
+                self.agent_data['credit_history'],
+                key=lambda x: x.get('date', '')
+            )
+            
+            if len(history) < 2:
+                return default_trend
+                
+            # Calculate monthly changes
+            changes = []
+            for i in range(1, len(history)):
+                prev_balance = float(history[i-1].get('balance', 0))
+                curr_balance = float(history[i].get('balance', 0))
+                if prev_balance > 0:
+                    change = (curr_balance - prev_balance) / prev_balance
+                    changes.append(change)
+            
+            if not changes:
+                return default_trend
+                
+            # Calculate average monthly change
+            avg_change = sum(changes) / len(changes)
+            
+            # Determine trend
+            if abs(avg_change) < 0.01:  # Less than 1% change is considered stable
+                trend = 'stable'
+            elif avg_change > 0:
+                trend = 'increasing'
+            else:
+                trend = 'decreasing'
+                
+            # Calculate confidence (based on consistency of direction)
+            consistent_changes = sum(1 for c in changes if (c > 0) == (avg_change > 0))
+            confidence = consistent_changes / len(changes)
+            
+            return {
+                'trend': trend,
+                'rate': avg_change,
+                'months': len(history),
+                'confidence': confidence
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error calculating credit usage trend: {e}")
+            return default_trend
+    
+    def calculate_sales_trend(self) -> Dict[str, Any]:
+        """Calculate sales trend over time.
+        
+        Returns:
+            Dict containing sales trend analysis with:
+            - trend: 'growing', 'declining', or 'stable'
+            - rate: Monthly growth rate
+            - months: Number of months of data
+            - confidence: Confidence level of the trend (0-1)
+        """
+        # Default values if no trend data is available
+        default_trend = {
+            'trend': 'stable',
+            'rate': 0.0,
+            'months': 0,
+            'confidence': 0.0
+        }
+        
+        try:
+            # Check if we have historical sales data
+            if 'sales_history' not in self.agent_data or not self.agent_data['sales_history']:
+                return default_trend
+                
+            # Get historical sales (assuming list of {'date': 'YYYY-MM-DD', 'amount': float})
+            history = sorted(
+                self.agent_data['sales_history'],
+                key=lambda x: x.get('date', '')
+            )
+            
+            if len(history) < 2:
+                return default_trend
+                
+            # Calculate monthly changes
+            changes = []
+            for i in range(1, len(history)):
+                prev_sales = float(history[i-1].get('amount', 0))
+                curr_sales = float(history[i].get('amount', 0))
+                if prev_sales > 0:
+                    change = (curr_sales - prev_sales) / prev_sales
+                    changes.append(change)
+            
+            if not changes:
+                return default_trend
+                
+            # Calculate average monthly change
+            avg_change = sum(changes) / len(changes)
+            
+            # Determine trend
+            if abs(avg_change) < 0.01:  # Less than 1% change is considered stable
+                trend = 'stable'
+            elif avg_change > 0:
+                trend = 'growing'
+            else:
+                trend = 'declining'
+                
+            # Calculate confidence (based on consistency of direction)
+            consistent_changes = sum(1 for c in changes if (c > 0) == (avg_change > 0))
+            confidence = consistent_changes / len(changes)
+            
+            return {
+                'trend': trend,
+                'rate': avg_change,
+                'months': len(history),
+                'confidence': confidence
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error calculating sales trend: {e}")
+            return default_trend
+    
     def analyze_credit_utilization(self) -> None:
-        """Analyze credit utilization metrics with updated risk levels.
+        """Analyze credit utilization metrics including GMV and credit dependence.
+        
+        Calculates:
+        - Credit Utilization Ratio (Balance/Limit)
+        - GMV (Credit Limit - Credit Line Balance)
+        - Credit Dependence (Credit GMV / Total GMV if available)
+        - Credit Usage Trend (over time)
         
         Risk levels based on utilization:
         - <30%: High risk (underutilization)
         - 30-70%: Medium risk (optimal utilization)
         - >70%: Low risk (good utilization)
         """
+        # Initialize metrics
+        self.metrics['credit_utilization_ratio'] = None
+        self.metrics['gmv'] = None
+        self.metrics['credit_dependence'] = None
+        
         if 'Credit Limit' in self.agent_data and 'Credit Line Balance' in self.agent_data:
-            limit = self.agent_data['Credit Limit']
-            balance = self.agent_data['Credit Line Balance']
-            
-            if pd.notnull(limit) and limit > 0:
-                utilization = (balance / limit) * 100
-                self.metrics['credit_utilization'] = utilization
+            try:
+                limit = float(self.agent_data['Credit Limit'])
+                balance = float(self.agent_data['Credit Line Balance'])
                 
-                # Updated risk levels based on new criteria
-                if utilization < 30:
-                    risk = RiskLevel.HIGH
-                    risk_label = "High (Underutilization)"
-                elif utilization <= 70:
-                    risk = RiskLevel.MODERATE
-                    risk_label = "Medium (Optimal)"
-                else:
-                    risk = RiskLevel.LOW
-                    risk_label = "Low (Good Utilization)"
+                # Calculate GMV (Credit Used)
+                gmv = max(0, limit - balance)  # Ensure non-negative
+                self.metrics['gmv'] = gmv
                 
+                # Add GMV to assessments
                 self.assessments.append({
-                    'metric': 'Credit Utilization',
-                    'value': f"{utilization:.1f}% - {risk_label}",
-                    'risk': risk
+                    'metric': 'GMV (Credit Used)',
+                    'value': f"{gmv:,.2f}",
+                    'risk': RiskLevel.LOW  # Just informational, no risk
                 })
                 
-                # Add findings and recommendations based on risk level
-                if risk == RiskLevel.HIGH:
-                    self.findings.append("High Risk: Credit utilization below 30% indicates underutilization")
-                    self.recommendations.append("Consider increasing credit line usage or reviewing credit needs")
-                elif risk == RiskLevel.MODERATE:
-                    self.findings.append("Optimal credit utilization range (30-70%)")
-                    self.recommendations.append("Continue current credit usage patterns")
-                else:
-                    self.findings.append("Good credit utilization (above 70%)")
-                    self.recommendations.append("Monitor for any sudden changes in utilization patterns")
+                # Calculate Credit Utilization Ratio if limit > 0
+                if limit > 0:
+                    utilization = (balance / limit) * 100
+                    self.metrics['credit_utilization_ratio'] = utilization
+                    
+                    # Updated risk levels based on new criteria
+                    if utilization < 30:
+                        risk = RiskLevel.HIGH
+                        risk_label = "High (Underutilization)"
+                        self.findings.append("High Risk: Credit utilization below 30% indicates underutilization")
+                        self.recommendations.append("Consider increasing credit line usage or reviewing credit needs")
+                    elif utilization <= 70:
+                        risk = RiskLevel.MODERATE
+                        risk_label = "Medium (Optimal)"
+                        self.findings.append("Optimal credit utilization range (30-70%)")
+                    else:
+                        risk = RiskLevel.LOW
+                        risk_label = "Low (Good Utilization)"
+                        self.findings.append("Good credit utilization (above 70%)")
+                        self.recommendations.append("Monitor for any sudden changes in utilization patterns")
+                    
+                    self.assessments.append({
+                        'metric': 'Credit Utilization',
+                        'value': f"{utilization:.1f}% - {risk_label}",
+                        'risk': risk
+                    })
+                
+                # Calculate Credit Dependence if Total GMV is available
+                if 'Total GMV' in self.agent_data and float(self.agent_data.get('Total GMV', 0)) > 0:
+                    total_gmv = float(self.agent_data['Total GMV'])
+                    credit_dependence = (gmv / total_gmv) * 100 if total_gmv > 0 else 0
+                    self.metrics['credit_dependence'] = credit_dependence
+                    
+                    # Add credit dependence to assessments
+                    if credit_dependence > 70:
+                        dep_risk = RiskLevel.HIGH
+                        dep_label = "High Dependence"
+                        self.findings.append("High credit dependence - business heavily relies on credit")
+                    elif credit_dependence > 40:
+                        dep_risk = RiskLevel.MODERATE
+                        dep_label = "Moderate Dependence"
+                    else:
+                        dep_risk = RiskLevel.LOW
+                        dep_label = "Low Dependence"
+                    
+                    self.assessments.append({
+                        'metric': 'Credit Dependence',
+                        'value': f"{credit_dependence:.1f}% - {dep_label}",
+                        'risk': dep_risk
+                    })
+                    
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error processing credit utilization data: {e}")
+    
+    def calculate_repayment_score(self, dpd: int, recent_payments: int = 0) -> int:
+        """Calculate repayment score based on DPD and recent payment history.
+        
+        Scoring:
+        - Base: 100 points
+        - Penalties:
+          - 30+ DPD: -5 points
+          - 60+ DPD: -15 points
+          - 90+ DPD: -30 points
+          - 120+ DPD: -50 points
+        - Bonus: +10 points for recent on-time payments
+        
+        Returns:
+            int: Repayment score (0-100)
+        """
+        score = 100  # Start with perfect score
+        
+        # Apply penalties based on DPD
+        if dpd >= 120:
+            score -= 50
+        elif dpd >= 90:
+            score -= 30
+        elif dpd >= 60:
+            score -= 15
+        elif dpd >= 30:
+            score -= 5
+            
+        # Apply bonus for recent on-time payments
+        if recent_payments > 0:
+            bonus = min(10, recent_payments * 2)  # Max 10 points, 2 points per recent payment
+            score = min(100, score + bonus)  # Cap at 100
+            
+        return max(0, score)  # Ensure non-negative
     
     def analyze_repayment(self) -> None:
-        """Analyze repayment metrics and DPD (Days Past Due) status."""
-        # Analyze credit score if available
+        """Analyze repayment metrics including DPD, delinquency flags, and repayment score."""
+        # Initialize metrics
+        self.metrics['repayment_score'] = None
+        self.metrics['delinquent_30p'] = False
+        self.metrics['delinquent_60p'] = False
+        self.metrics['delinquent_90p'] = False
+        
+        # Get DPD (Days Past Due) if available
+        dpd = int(self.agent_data.get('Dpd', 0)) if pd.notnull(self.agent_data.get('Dpd')) else 0
+        self.metrics['dpd'] = dpd
+        
+        # Set delinquency flags
+        self.metrics['delinquent_30p'] = dpd >= 30
+        self.metrics['delinquent_60p'] = dpd >= 60
+        self.metrics['delinquent_90p'] = dpd >= 90
+        
+        # Get recent on-time payments (default to 0 if not available)
+        recent_payments = int(self.agent_data.get('RecentPayments', 0)) if pd.notnull(self.agent_data.get('RecentPayments')) else 0
+        
+        # Calculate repayment score
+        repayment_score = self.calculate_repayment_score(dpd, recent_payments)
+        self.metrics['repayment_score'] = repayment_score
+        
+        # Determine risk level based on repayment score
+        if repayment_score >= 90:
+            risk = RiskLevel.LOW
+            risk_label = "Excellent"
+        elif repayment_score >= 70:
+            risk = RiskLevel.LOW
+            risk_label = "Good"
+        elif repayment_score >= 50:
+            risk = RiskLevel.MODERATE
+            risk_label = "Moderate"
+        elif repayment_score >= 30:
+            risk = RiskLevel.HIGH
+            risk_label = "High Risk"
+        else:
+            risk = RiskLevel.CRITICAL
+            risk_label = "Critical Risk"
+        
+        # Add repayment score to assessments
+        self.assessments.append({
+            'metric': 'Repayment Score',
+            'value': f"{repayment_score}/100 - {risk_label}",
+            'risk': risk
+        })
+        
+        # Add DPD assessment
+        if dpd > 90:
+            dpd_risk = RiskLevel.CRITICAL
+            dpd_label = f"Severe Delinquency ({dpd} days)"
+            self.findings.append(f"Critical: {dpd} days past due - account is severely delinquent")
+            self.recommendations.append("Immediate collection action required")
+        elif dpd > 60:
+            dpd_risk = RiskLevel.HIGH
+            dpd_label = f"High Risk Delinquency ({dpd} days)"
+            self.findings.append(f"High Risk: {dpd} days past due - account is delinquent")
+            self.recommendations.append("Initiate collection process and review credit terms")
+        elif dpd > 30:
+            dpd_risk = RiskLevel.MODERATE
+            dpd_label = f"Moderate Risk ({dpd} days)"
+            self.findings.append(f"Moderate Risk: {dpd} days past due - monitor closely")
+            self.recommendations.append("Send payment reminder and follow up")
+        elif dpd > 7:
+            dpd_risk = RiskLevel.LOW
+            dpd_label = f"Slight Delay ({dpd} days)"
+            self.findings.append(f"Slight delay in payment ({dpd} days)")
+        else:
+            dpd_risk = RiskLevel.LOW
+            dpd_label = "Current (0-7 days)"
+        
+        self.assessments.append({
+            'metric': 'Days Past Due (DPD)',
+            'value': dpd_label,
+            'risk': dpd_risk
+        })
+        
+        # Add credit score if available
         if 'credit_score' in self.agent_data and pd.notnull(self.agent_data['credit_score']):
-            score = self.agent_data['credit_score']
+            score = int(self.agent_data['credit_score'])
             self.metrics['credit_score'] = score
             
             if score < 30000:
-                risk = RiskLevel.HIGH
-                score_label = "High Risk"
-            elif score < 70000:
-                risk = RiskLevel.MODERATE
-                score_label = "Medium Risk"
-            else:
-                risk = RiskLevel.LOW
-                score_label = "Low Risk"
-                
-            self.assessments.append({
-                'metric': 'Credit Score',
-                'value': f"{score:,} - {score_label}",
-                'risk': risk
-            })
-        
-        # Analyze DPD (Days Past Due) if available
-        if 'Dpd' in self.agent_data and pd.notnull(self.agent_data['Dpd']):
-            dpd = self.agent_data['Dpd']
-            self.metrics['dpd'] = dpd
-            
-            if dpd > 30:
-                risk = RiskLevel.CRITICAL
-                dpd_label = "Severe Delinquency"
-                self.findings.append(f"Critical: {dpd} days past due - account is severely delinquent")
-                self.recommendations.append("Immediate collection action required")
-            elif dpd > 15:
-                risk = RiskLevel.HIGH
-                dpd_label = "High Risk Delinquency"
-                self.findings.append(f"High Risk: {dpd} days past due - account is delinquent")
-                self.recommendations.append("Initiate collection process and review credit terms")
-            elif dpd > 7:
-                risk = RiskLevel.MODERATE
-                dpd_label = "Moderate Risk"
-                self.findings.append(f"Moderate Risk: {dpd} days past due - monitor closely")
-                self.recommendations.append("Send payment reminder and follow up")
-            else:
-                risk = RiskLevel.LOW
-                dpd_label = "Current"
-                
-            self.assessments.append({
-                'metric': 'Days Past Due (DPD)',
-                'value': f"{dpd} days - {dpd_label}",
-                'risk': risk
-            })
-            
-            self.assessments.append({
-                'metric': 'Credit Score',
-                'value': f"{score:,.0f}",
-                'risk': risk
-            })
-            
-            if score < 30000:
+                score_risk = RiskLevel.HIGH
+                score_label = f"{score:,} - High Risk"
                 self.findings.append("Low credit score indicates higher risk of default")
                 self.recommendations.append("Consider additional credit checks or collateral requirements")
+            elif score < 70000:
+                score_risk = RiskLevel.MODERATE
+                score_label = f"{score:,} - Medium Risk"
+            else:
+                score_risk = RiskLevel.LOW
+                score_label = f"{score:,} - Low Risk"
+                
+            self.assessments.append({
+                'metric': 'Credit Score',
+                'value': score_label,
+                'risk': score_risk
+            })
     
     def generate_recommendations(self) -> None:
         """Generate recommendations based on analysis."""
         if not self.recommendations:
             self.recommendations.append("No specific recommendations at this time.")
     
+    def analyze_region_risk(self) -> None:
+        """Analyze regional risk factors and their impact on credit health.
+        
+        Region risk is calculated based on:
+        - Default rate in the region (50% weight)
+        - Average DPD in the region (30% weight)
+        - Recovery metrics (20% weight)
+        """
+        # Initialize default values
+        self.metrics['region_risk_score'] = 0.0
+        self.metrics['region_default_rate'] = None
+        self.metrics['region_avg_dpd'] = None
+        self.metrics['region_recovery_rate'] = None
+        
+        try:
+            # Get region data if available
+            region = self.agent_data.get('Region')
+            if not region or pd.isna(region):
+                logger.warning("No region data available for risk analysis")
+                return
+                
+            # Get region metrics (these would typically come from aggregated data)
+            # For now, we'll use placeholders or values from the agent data if available
+            region_default_rate = float(self.agent_data.get('RegionDefaultRate', 0.1))  # Default 10%
+            region_avg_dpd = float(self.agent_data.get('RegionAvgDPD', 15))  # Default 15 days
+            region_recovery_rate = float(self.agent_data.get('RegionRecoveryRate', 0.7))  # Default 70%
+            
+            # Store the metrics
+            self.metrics.update({
+                'region_default_rate': region_default_rate,
+                'region_avg_dpd': region_avg_dpd,
+                'region_recovery_rate': region_recovery_rate
+            })
+            
+            # Calculate region risk score (0-1 scale, higher is riskier)
+            # Normalize DPD to 0-1 range (assuming max 90 days for normalization)
+            norm_dpd = min(region_avg_dpd / 90, 1.0)
+            
+            # Calculate risk components with weights
+            default_risk = region_default_rate * 0.5  # 50% weight
+            dpd_risk = norm_dpd * 0.3                # 30% weight
+            recovery_risk = (1 - region_recovery_rate) * 0.2  # 20% weight
+            
+            # Calculate overall region risk (0-1 scale)
+            region_risk_score = default_risk + dpd_risk + recovery_risk
+            self.metrics['region_risk_score'] = min(max(region_risk_score, 0), 1)  # Clamp to 0-1
+            
+            # Add region risk assessment
+            if region_risk_score > 0.7:
+                risk = RiskLevel.CRITICAL
+                risk_label = "Very High Risk"
+            elif region_risk_score > 0.5:
+                risk = RiskLevel.HIGH
+                risk_label = "High Risk"
+            elif region_risk_score > 0.3:
+                risk = RiskLevel.MODERATE
+                risk_label = "Moderate Risk"
+            else:
+                risk = RiskLevel.LOW
+                risk_label = "Low Risk"
+            
+            self.assessments.append({
+                'metric': 'Region Risk',
+                'value': f"{risk_label} ({region_risk_score:.1%})",
+                'risk': risk,
+                'details': {
+                    'Default Rate': f"{region_default_rate:.1%}",
+                    'Avg DPD': f"{region_avg_dpd:.1f} days",
+                    'Recovery Rate': f"{region_recovery_rate:.1%}"
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in region risk analysis: {e}")
+    
+    def calculate_credit_health_score(self) -> float:
+        """Calculate overall credit health score (0-100).
+        
+        Score components and weights:
+        - Repayment Score: 40%
+        - Credit Utilization: 30%
+        - Region Risk: 20%
+        - Credit Dependence: 10%
+        """
+        try:
+            # Get component scores with defaults
+            repayment_score = self.metrics.get('repayment_score', 0)
+            
+            # Credit utilization score (0-100, higher is better)
+            util_ratio = self.metrics.get('credit_utilization_ratio', 0)
+            if util_ratio is None:
+                util_score = 50  # Neutral if not available
+            elif util_ratio < 0.3:  # Underutilization
+                util_score = 30 + (util_ratio / 0.3) * 20  # 30-50
+            elif util_ratio <= 0.7:  # Optimal
+                util_score = 50 + ((util_ratio - 0.3) / 0.4) * 40  # 50-90
+            else:  # High utilization
+                util_score = 90 - ((util_ratio - 0.7) / 0.3) * 40  # 90-50
+            
+            # Region risk score (convert from 0-1 scale to 0-100, inverted)
+            region_risk = self.metrics.get('region_risk_score', 0.5)
+            region_score = (1 - region_risk) * 100
+            
+            # Credit dependence score (lower is better)
+            credit_dep = min(self.metrics.get('credit_dependence', 0) / 100, 1.0)  # Clamp to 0-1
+            dep_score = (1 - credit_dep) * 100
+            
+            # Calculate weighted score
+            weights = {
+                'repayment': 0.4,
+                'utilization': 0.3,
+                'region': 0.2,
+                'dependence': 0.1
+            }
+            
+            total_score = (
+                (repayment_score * weights['repayment']) +
+                (util_score * weights['utilization']) +
+                (region_score * weights['region']) +
+                (dep_score * weights['dependence'])
+            )
+            
+            # Store the score and component metrics
+            self.metrics['credit_health_score'] = total_score
+            self.metrics['credit_health_components'] = {
+                'repayment': repayment_score,
+                'utilization': util_score,
+                'region': region_score,
+                'dependence': dep_score
+            }
+            
+            return total_score
+            
+        except Exception as e:
+            logger.error(f"Error calculating credit health score: {e}")
+            return 50.0  # Return neutral score on error
+    
     def analyze(self) -> Dict[str, Any]:
         """Run all analyses and return results."""
+        # Run individual analyses
         self.analyze_credit_utilization()
         self.analyze_repayment()
+        self.analyze_region_risk()
+        
+        # Calculate overall credit health score
+        health_score = self.calculate_credit_health_score()
+        
+        # Add credit health assessment
+        if health_score >= 80:
+            health_risk = RiskLevel.LOW
+            health_label = "Excellent"
+        elif health_score >= 60:
+            health_risk = RiskLevel.LOW
+            health_label = "Good"
+        elif health_score >= 40:
+            health_risk = RiskLevel.MODERATE
+            health_label = "Fair"
+        elif health_score >= 20:
+            health_risk = RiskLevel.HIGH
+            health_label = "Poor"
+        else:
+            health_risk = RiskLevel.CRITICAL
+            health_label = "Critical"
+            
+        self.assessments.append({
+            'metric': 'Credit Health Score',
+            'value': f"{health_score:.1f}/100 - {health_label}",
+            'risk': health_risk
+        })
+        
+        # Add trend analyses
+        credit_trend = self.calculate_credit_usage_trend()
+        sales_trend = self.calculate_sales_trend()
+        
+        # Store trend metrics
+        self.metrics['credit_usage_trend'] = credit_trend
+        self.metrics['sales_trend'] = sales_trend
+        
+        # Add trend assessments
+        if credit_trend['months'] > 0:
+            trend_emoji = '📈' if credit_trend['trend'] == 'increasing' else '📉' if credit_trend['trend'] == 'decreasing' else '➡️'
+            self.assessments.append({
+                'metric': 'Credit Usage Trend',
+                'value': f"{trend_emoji} {credit_trend['trend'].title()} ({credit_trend['rate']:+.1%} monthly)",
+                'risk': RiskLevel.HIGH if credit_trend['trend'] == 'increasing' else RiskLevel.LOW
+            })
+        
+        if sales_trend['months'] > 0:
+            trend_emoji = '📈' if sales_trend['trend'] == 'growing' else '📉' if sales_trend['trend'] == 'declining' else '➡️'
+            self.assessments.append({
+                'metric': 'Sales Trend',
+                'value': f"{trend_emoji} {sales_trend['trend'].title()} ({sales_trend['rate']:+.1%} monthly)",
+                'risk': RiskLevel.HIGH if sales_trend['trend'] == 'declining' else RiskLevel.LOW
+            })
+        
+        # Generate final recommendations
         self.generate_recommendations()
         
         return {
             'metrics': self.metrics,
             'assessments': self.assessments,
             'findings': self.findings,
-            'recommendations': self.recommendations
+            'recommendations': self.recommendations,
+            'credit_health_score': health_score
         }
 
 def load_agents() -> pd.DataFrame:
-    """Load agent data from Excel file."""
+    """Load and standardize agent data with enhanced error handling and data quality checks.
+    
+    This function performs the following operations:
+    1. Loads agent data from the source Excel file
+    2. Enriches data with information from sales data when available
+    3. Handles missing values with appropriate defaults
+    4. Validates data quality and provides metrics
+    5. Returns a standardized DataFrame with all required columns
+    
+    Returns:
+        DataFrame with standardized column names matching the documented schema.
+        Required columns: BZID, organizationname, status, Region, city, State,
+        Credit Limit, Credit Line Balance, TotalSeats, GMV
+    
+    Raises:
+        FileNotFoundError: If the source data file is not found
+        ValueError: If required columns are missing from the source data
+    """
+    # Define required and optional columns
+    required_columns = [
+        'BZID', 'organizationname', 'status', 'Region', 'city', 'State',
+        'Credit Limit', 'Credit Line Balance', 'TotalSeats', 'GMV'
+    ]
+    
+    # Define data quality thresholds (can be adjusted as needed)
+    QUALITY_THRESHOLDS = {
+        'missing_org_name': 0.1,  # Max 10% missing organization names
+        'missing_region': 0.1,    # Max 10% missing regions
+        'zero_credit_limit': 0.05, # Max 5% zero/negative credit limits
+    }
+    
     try:
-        agents = pd.read_excel('source_data/credit_Agents.xlsx')
-        agents['Bzid'] = agents['Bzid'].astype(str)
-        return agents
+        # 1. Load the raw agent data with validation
+        agent_file = 'source_data/credit_Agents.xlsx'
+        if not os.path.exists(agent_file):
+            raise FileNotFoundError(f"Agent data file not found at {agent_file}")
+            
+        print("Loading agent data from source file...")
+        try:
+            agents = pd.read_excel(agent_file)
+            if agents.empty:
+                raise ValueError("Agent data file is empty")
+                
+            # Log basic info about the loaded data
+            print(f"Found {len(agents):,} agents with columns: {', '.join(agents.columns.tolist())}")
+            
+            # Check for required columns in source data
+            required_source_cols = ['Bzid', 'Credit Limit', 'Credit Line Balance']
+            missing_source_cols = [col for col in required_source_cols 
+                                 if col not in agents.columns]
+            
+            if missing_source_cols:
+                raise ValueError(f"Missing required columns in source data: {', '.join(missing_source_cols)}")
+                
+        except Exception as e:
+            raise ValueError(f"Error reading agent data: {str(e)}")
+        
+        # 2. Load sales data for additional information
+        print("\nLoading sales data...")
+        sales_data = load_sales()  # This now includes its own data quality reporting
+        
+        # 3. Prepare agent data with proper data types and validation
+        result = pd.DataFrame()
+        
+        # 3.1 Handle BZID - ensure it's a string and clean it
+        result['BZID'] = agents['Bzid'].astype(str).str.strip()
+        
+        # Remove any rows with empty BZID
+        initial_count = len(result)
+        result = result[result['BZID'].str.len() > 0].copy()
+        if len(result) < initial_count:
+            print(f"Warning: Removed {initial_count - len(result)} rows with empty BZID")
+        
+        # 3.2 Process credit-related fields with validation
+        credit_fields = {
+            'Credit Limit': ('Credit Limit', 0),
+            'Credit Line Balance': ('Credit Line Balance', 0)
+        }
+        
+        for target_col, (src_col, default) in credit_fields.items():
+            if src_col in agents.columns:
+                # Convert to numeric, coercing errors to NaN
+                result[target_col] = pd.to_numeric(agents[src_col], errors='coerce')
+                
+                # Count and report null values
+                null_count = result[target_col].isna().sum()
+                if null_count > 0:
+                    pct_null = (null_count / len(result)) * 100
+                    print(f"Warning: Found {null_count:,} null values ({pct_null:.1f}%) in {target_col}, "
+                          f"filling with {default}")
+                    result[target_col] = result[target_col].fillna(default)
+            else:
+                print(f"Warning: Column '{src_col}' not found, using default value {default}")
+                result[target_col] = default
+        
+        # 3.3 Calculate derived fields
+        result['GMV'] = result['Credit Limit'] - result['Credit Line Balance'].clip(lower=0)
+        
+        # 4. Merge with sales data if available
+        if not sales_data.empty and 'BZID' in sales_data.columns:
+            print("\n=== Starting Data Merge ===")
+            print(f"Agent data shape before merge: {result.shape}")
+            print(f"Sales data shape: {sales_data.shape}")
+            
+            # Ensure BZID is string type in both dataframes
+            result['BZID'] = result['BZID'].astype(str).str.strip()
+            sales_data['BZID'] = sales_data['BZID'].astype(str).str.strip()
+            
+            # Log sample BZIDs from both datasets
+            print("\nSample agent BZIDs (first 5):", result['BZID'].head(5).tolist())
+            print("Sample sales BZIDs (first 5):", sales_data['BZID'].head(5).tolist())
+            
+            # Check for common BZIDs between datasets
+            agent_bzids = set(result['BZID'])
+            sales_bzids = set(sales_data['BZID'])
+            common_bzids = agent_bzids.intersection(sales_bzids)
+            
+            print(f"\nAgent BZIDs: {len(agent_bzids):,}")
+            print(f"Sales BZIDs: {len(sales_bzids):,}")
+            print(f"Common BZIDs: {len(common_bzids):,} ({(len(common_bzids)/len(agent_bzids))*100:.1f}% of agents)")
+            
+            if common_bzids:
+                print("Sample common BZIDs:", list(common_bzids)[:5])
+            else:
+                print("WARNING: No common BZIDs found between agent and sales data")
+                # Try to diagnose the issue with sample data
+                print("\nSample agent BZIDs (full sample):", result['BZID'].head(10).tolist())
+                print("Sample sales BZIDs (full sample):", sales_data['BZID'].head(10).tolist())
+                
+                # Check for potential type mismatches
+                print("\nChecking for type mismatches...")
+                agent_types = result['BZID'].apply(type).value_counts()
+                sales_types = sales_data['BZID'].apply(type).value_counts()
+                print(f"Agent BZID types:\n{agent_types}")
+                print(f"Sales BZID types:\n{sales_types}")
+                
+                # Check for leading/trailing spaces
+                print("\nChecking for whitespace issues...")
+                agent_has_whitespace = result['BZID'].str.contains(r'^\s|\s$').any()
+                sales_has_whitespace = sales_data['BZID'].str.contains(r'^\s|\s$').any()
+                print(f"Agent BZIDs have whitespace: {agent_has_whitespace}")
+                print(f"Sales BZIDs have whitespace: {sales_has_whitespace}")
+            
+            # Only merge columns that exist in sales_data and are needed
+            sales_cols = ['organizationname', 'Region', 'city', 'State', 'TotalSeats', 'status']
+            merge_cols = ['BZID'] + [col for col in sales_cols if col in sales_data.columns]
+            
+            print(f"\nMerging with columns: {merge_cols}")
+            
+            # Perform the merge with indicator to track matches
+            initial_count = len(result)
+            merged = result.merge(
+                sales_data[merge_cols].drop_duplicates('BZID'),  # Ensure one record per BZID
+                on='BZID', 
+                how='left',
+                indicator='_merge',
+                suffixes=('', '_sales')
+            )
+            
+            # Log merge results
+            merge_counts = merged['_merge'].value_counts()
+            print("\n=== Merge Results ===")
+            for merge_type, count in merge_counts.items():
+                print(f"- {merge_type}: {count:,} rows ({(count/len(merged))*100:.1f}%)")
+            
+            # Analyze merge quality
+            matched_count = (merged['_merge'] == 'both').sum()
+            match_rate = (matched_count / len(merged)) * 100
+            print(f"\nMatch rate: {match_rate:.1f}% ({matched_count:,} of {len(merged):,} agents matched)")
+            
+            # Handle merged columns
+            for col in sales_cols:
+                if f"{col}_sales" in merged.columns:
+                    # Only fill NA values in the original column with sales data
+                    merged[col] = merged[col].fillna(merged[f"{col}_sales"])
+                    merged = merged.drop(columns=[f"{col}_sales"])
+            
+            # Remove the merge indicator column
+            if '_merge' in merged.columns:
+                merged = merged.drop(columns=['_merge'])
+            
+            result = merged
+            
+            # Final check for data quality
+            print("\n=== Data Quality After Merge ===")
+            quality_metrics = []
+            for col in ['organizationname', 'Region', 'city', 'State']:
+                if col in result.columns:
+                    missing = result[col].isna() | (result[col] == 'Unknown')
+                    pct_missing = (missing.sum() / len(result)) * 100
+                    quality_metrics.append((col, missing.sum(), pct_missing))
+            
+            # Print quality metrics in a table
+            print("\n{:<20} {:<10} {:<10}".format("Column", "Missing", "% Missing"))
+            print("-" * 45)
+            for col, count, pct in quality_metrics:
+                print("{:<20} {:<10,} {:<10.1f}%".format(col, count, pct))
+            
+            # Log sample of merged data
+            print("\nSample of merged data (first row):")
+            sample = result.iloc[0].to_dict()
+            for k, v in sample.items():
+                if pd.isna(v):
+                    v = "[MISSING]"
+                elif isinstance(v, float):
+                    v = f"{v:,.2f}"
+                print(f"  {k}: {v}")
+        
+        # 5. Set default values for missing columns
+        defaults = {
+            'organizationname': 'Unknown Organization',
+            'status': 'Unknown',
+            'Region': 'Unknown',
+            'city': 'Unknown',
+            'State': 'Unknown',
+            'TotalSeats': 1
+        }
+        
+        for col, default in defaults.items():
+            if col not in result.columns:
+                result[col] = default
+            else:
+                result[col] = result[col].fillna(default)
+        
+        # 6. Ensure all required columns exist and are in the correct order
+        missing_cols = [col for col in required_columns if col not in result.columns]
+        if missing_cols:
+            print(f"Warning: Missing required columns after processing: {', '.join(missing_cols)}")
+            for col in missing_cols:
+                result[col] = None  # Add missing columns with None values
+        
+        result = result[required_columns].copy()
+        
+        # 7. Generate comprehensive data quality report
+        print("\n=== Agent Data Quality Report ===")
+        print(f"Total agents processed: {len(result):,}")
+        
+        # Define quality checks
+        quality_checks = {
+            'Missing BZID': result['BZID'].isna().sum(),
+            'Missing organization name': (result['organizationname'] == 'Unknown Organization').sum(),
+            'Missing region': (result['Region'] == 'Unknown').sum(),
+            'Zero/negative credit limit': (result['Credit Limit'] <= 0).sum(),
+            'Negative GMV': (result['GMV'] < 0).sum(),
+            'Missing city': (result['city'] == 'Unknown').sum(),
+            'Missing state': (result['State'] == 'Unknown').sum()
+        }
+        
+        # Calculate percentages and check against thresholds
+        quality_issues = []
+        for check, count in quality_checks.items():
+            pct = (count / len(result)) * 100
+            status = "OK"
+            
+            # Check against quality thresholds
+            if 'organization name' in check and pct > (QUALITY_THRESHOLDS['missing_org_name'] * 100):
+                status = f"WARNING: Exceeds {QUALITY_THRESHOLDS['missing_org_name']*100:.0f}% threshold"
+                quality_issues.append(f"High percentage of {check.lower()} ({pct:.1f}%)")
+            elif 'region' in check and pct > (QUALITY_THRESHOLDS['missing_region'] * 100):
+                status = f"WARNING: Exceeds {QUALITY_THRESHOLDS['missing_region']*100:.0f}% threshold"
+                quality_issues.append(f"High percentage of {check.lower()} ({pct:.1f}%)")
+            elif 'credit limit' in check and pct > (QUALITY_THRESHOLDS['zero_credit_limit'] * 100):
+                status = f"WARNING: Exceeds {QUALITY_THRESHOLDS['zero_credit_limit']*100:.0f}% threshold"
+                quality_issues.append(f"High percentage of {check.lower()} ({pct:.1f}%)")
+            
+            print(f"- {check}: {count:,} agents ({pct:.1f}%) {status}")
+        
+        # 8. Log sample data for verification
+        print("\nSample agent data (first row):")
+        sample = result.iloc[0].to_dict()
+        for k, v in sample.items():
+            if isinstance(v, float):
+                print(f"  {k}: {v:,.2f}")
+            else:
+                print(f"  {k}: {v}")
+        
+        # 9. Raise warning if critical data quality issues found
+        if quality_issues:
+            print("\nWARNING: Data quality issues detected:")
+            for issue in quality_issues:
+                print(f"- {issue}")
+            print("\nRecommendation: Review the source data and data loading process "
+                  "to address these issues.")
+        
+        return result
+        
     except Exception as e:
-        print(f"Error loading agent data: {e}")
-        return pd.DataFrame()
+        error_msg = f"Error loading agent data: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        # Return empty DataFrame with required columns
+        return pd.DataFrame(columns=required_columns)
 
 def load_sales() -> pd.DataFrame:
-    """Load sales data from Excel file with region and organization info."""
+    """Load and process sales data with enhanced error handling and data quality checks.
+    
+    This function performs the following operations:
+    1. Loads sales data from the source Excel file with validation
+    2. Standardizes column names and data types
+    3. Cleans and validates the data
+    4. Provides comprehensive data quality metrics
+    5. Handles errors gracefully with detailed logging
+    
+    Returns:
+        DataFrame with standardized column names including:
+        - Bzid: Agent ID (required)
+        - organizationname: Organization name
+        - city: City
+        - State: State
+        - Region: Sales region
+        - Ro_Name: Regional Officer name
+        - RM_Name: Relationship Manager name
+    """
+    SALES_FILE = 'source_data/sales_data.xlsx'
+    
+    # Define expected columns and their data types
+    COLUMN_MAPPING = {
+        'account': 'Bzid',
+        'organizationname': 'organizationname',
+        'city': 'city',
+        'State': 'State',
+        'Region': 'Region',
+        'Ro Name': 'Ro_Name',
+        'RM Name': 'RM_Name',
+        'TotalSeats': 'TotalSeats',
+        'status': 'status'
+    }
+    
+    # Required columns (must be present in the source data)
+    REQUIRED_COLS = ['account']
+    
+    # Optional columns (will use defaults if missing)
+    OPTIONAL_COLS = [col for col in COLUMN_MAPPING.keys() if col not in REQUIRED_COLS]
+    
     try:
-        # Load sales data with specific columns we need
-        sales = pd.read_excel('source_data/sales_data.xlsx', 
-                            usecols=['account', 'organizationname', 'city', 'State', 'Region', 'Ro Name', 'RM Name'])
+        # 1. Check if file exists and is accessible
+        if not os.path.exists(SALES_FILE):
+            print(f"Error: Sales data file not found at {SALES_FILE}")
+            return pd.DataFrame()
+            
+        print(f"\nLoading sales data from {SALES_FILE}...")
         
-        # Standardize column names and clean data
-        sales = (sales
-                .rename(columns={'account': 'Bzid', 'Region': 'Region'})
-                .drop_duplicates('Bzid')  # Keep only one record per agent
-                .assign(Bzid=lambda x: x['Bzid'].astype(str).str.strip())
-                .dropna(subset=['Bzid']))  # Remove rows with missing Bzid
-                
-        return sales
-    except Exception as e:
-        print(f"Error loading sales data: {e}")
-        print("Available columns in sales data:")
+        # 2. First, check available columns
         try:
-            print(pd.read_excel('source_data/sales_data.xlsx', nrows=0).columns.tolist())
-        except Exception as e2:
-            print(f"Could not read column names: {e2}")
+            # Read just the header to get column names
+            all_columns = pd.read_excel(SALES_FILE, nrows=0).columns.tolist()
+            print(f"Found {len(all_columns)} columns in sales data")
+            
+            # Log available columns for debugging
+            print("\nAvailable columns in sales data:")
+            for i, col in enumerate(all_columns, 1):
+                print(f"  {i}. {col}")
+            
+            # Check for required columns
+            missing_required = [col for col in REQUIRED_COLS if col not in all_columns]
+            if missing_required:
+                print(f"\nError: Missing required columns: {', '.join(missing_required)}")
+                return pd.DataFrame()
+                
+            # Select only columns that exist in the file
+            selected_cols = [col for col in (REQUIRED_COLS + OPTIONAL_COLS) 
+                           if col in all_columns]
+            
+            if not selected_cols:
+                print("Error: No valid columns found in sales data")
+                return pd.DataFrame()
+                
+            # 3. Load the data with selected columns
+            print(f"\nLoading data with columns: {', '.join(selected_cols)}")
+            sales = pd.read_excel(
+                SALES_FILE, 
+                usecols=selected_cols,
+                dtype=str,  # Read all as string first, convert later
+                na_values=['', ' ', 'NA', 'N/A', 'NULL', 'None', 'nan', 'NaN'],
+                keep_default_na=False
+            )
+            
+            if sales.empty:
+                print("Warning: Sales data file is empty")
+                return pd.DataFrame()
+                
+            print(f"Loaded {len(sales):,} rows from sales data")
+            
+        except Exception as e:
+            print(f"Error reading sales data: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return pd.DataFrame()
+        
+        # 4. Standardize column names
+        print("\nStandardizing column names...")
+        rename_map = {k: v for k, v in COLUMN_MAPPING.items() 
+                     if k in sales.columns and v != k}
+        
+        if rename_map:
+            print("Renaming columns:")
+            for old, new in rename_map.items():
+                print(f"  {old} -> {new}")
+            sales = sales.rename(columns=rename_map)
+        
+        # 5. Clean and validate data
+        print("\nCleaning and validating data...")
+        
+        # 5.1 Clean Bzid (required field)
+        if 'Bzid' in sales.columns:
+            # Convert to string and clean
+            sales['Bzid'] = sales['Bzid'].astype(str).str.strip()
+            
+            # Remove rows with empty/missing Bzid
+            initial_count = len(sales)
+            sales = sales[~sales['Bzid'].isna() & (sales['Bzid'] != '')].copy()
+            
+            if len(sales) < initial_count:
+                print(f"  Removed {initial_count - len(sales):,} rows with missing/invalid Bzid")
+            
+            # Check for duplicates
+            dup_count = sales.duplicated('Bzid').sum()
+            if dup_count > 0:
+                print(f"  Found {dup_count:,} duplicate Bzid values, keeping first occurrence")
+                sales = sales.drop_duplicates('Bzid', keep='first')
+        else:
+            print("Error: Required column 'Bzid' not found after renaming")
+            return pd.DataFrame()
+        
+        # 5.2 Clean text fields
+        text_columns = ['organizationname', 'city', 'State', 'Region', 'Ro_Name', 'RM_Name', 'status']
+        for col in text_columns:
+            if col in sales.columns:
+                # Convert to string, strip whitespace, and clean common placeholders
+                sales[col] = (
+                    sales[col]
+                    .astype(str)
+                    .str.strip()
+                    .replace({
+                        'nan': '', 'None': '', 'NULL': '', 
+                        'N/A': '', 'n/a': '', '': None
+                    })
+                )
+                
+                # Count missing values
+                missing = sales[col].isna().sum()
+                if missing > 0:
+                    pct_missing = (missing / len(sales)) * 100
+                    print(f"  Column '{col}': {missing:,} missing values ({pct_missing:.1f}%)")
+        
+        # 5.3 Clean numeric fields
+        if 'TotalSeats' in sales.columns:
+            # Convert to numeric, coerce errors to NaN
+            sales['TotalSeats'] = pd.to_numeric(sales['TotalSeats'], errors='coerce')
+            
+            # Replace NaN with default value (1)
+            sales['TotalSeats'] = sales['TotalSeats'].fillna(1).astype(int)
+            
+            # Validate values
+            invalid_seats = (sales['TotalSeats'] <= 0).sum()
+            if invalid_seats > 0:
+                print(f"  Found {invalid_seats:,} rows with invalid TotalSeats (<=0), setting to 1")
+                sales.loc[sales['TotalSeats'] <= 0, 'TotalSeats'] = 1
+        
+        # 6. Data quality report
+        print("\n=== Sales Data Quality Report ===")
+        print(f"Total agents in sales data: {len(sales):,}")
+        
+        if len(sales) > 0:
+            # Check for missing values in key columns
+            key_columns = [
+                'organizationname', 'city', 'State', 'Region', 
+                'Ro_Name', 'RM_Name', 'status', 'TotalSeats'
+            ]
+            
+            print("\nMissing values in key columns:")
+            for col in key_columns:
+                if col in sales.columns:
+                    missing = sales[col].isna().sum()
+                    pct_missing = (missing / len(sales)) * 100
+                    print(f"  {col}: {missing:,} missing ({pct_missing:.1f}%)")
+            
+            # Check for data distribution in key columns
+            if 'Region' in sales.columns:
+                print("\nRegion distribution (top 10):")
+                region_counts = sales['Region'].value_counts(dropna=False).head(10)
+                for region, count in region_counts.items():
+                    pct = (count / len(sales)) * 100
+                    print(f"  {region or 'MISSING'}: {count:,} agents ({pct:.1f}%)")
+            
+            # Show sample data
+            print("\nSample sales data (first row):")
+            sample = sales.iloc[0].to_dict()
+            for k, v in sample.items():
+                if pd.isna(v):
+                    v = "[MISSING]"
+                elif isinstance(v, float):
+                    v = f"{v:,.2f}"
+                print(f"  {k}: {v}")
+        
+        return sales
+        
+    except Exception as e:
+        print(f"\nUnexpected error loading sales data: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return pd.DataFrame()
 
 def load_dpd() -> pd.DataFrame:
@@ -272,7 +1217,7 @@ def format_score_breakdown(score_components: Dict[str, float], max_width: int = 
     for component, score in sorted_components:
         # Calculate bar length (minimum 1 if score > 0)
         bar_length = max(1, int((score / max_score) * max_width)) if max_score > 0 else 1
-        bar = "█" * bar_length
+        bar = "=" * bar_length  # Using '=' for the bar instead of block characters
         
         # Calculate percentage of total score
         pct_of_total = (score / total_score * 100) if total_score > 0 else 0
@@ -291,11 +1236,11 @@ def format_score_breakdown(score_components: Dict[str, float], max_width: int = 
         # Format the score with appropriate color
         score_str = f"{score:.2f}"
         
-        # Format the line with aligned columns
+        # Format the line with aligned columns using ASCII characters
         line = (
             f"  \033[1m{component:<33}\033[0m "  # Component name in bold
             f"{color}{score_str:<7}\033[0m "      # Score with color
-            f"{color}▕{bar:<{max_width}}▏\033[0m "  # Bar with borders
+            f"{color}[{bar:<{max_width}}]\033[0m "  # Bar with ASCII borders
             f"{pct_color}{pct_of_total:>5.1f}%\033[0m"  # Percentage
         )
         result.append(line)
@@ -349,7 +1294,7 @@ def print_agent_profile(bzid: str, agent_data: Dict, analysis: Dict) -> None:
     # Clear screen and print header
     print("\033[H\033[J")  # Clear screen
     print("\033[1;35m" + "=" * 80)
-    print(f"🤖 AGENT CREDIT RISK PROFILE: {bzid}".center(80))
+    print(f"[AGENT] CREDIT RISK PROFILE: {bzid}".center(80))
     print("=" * 80 + "\033[0m")
     
     # Print last updated timestamp
@@ -358,7 +1303,7 @@ def print_agent_profile(bzid: str, agent_data: Dict, analysis: Dict) -> None:
     print("\033[90m" + "-" * 80 + "\033[0m")
     
     # --- Basic Information ---
-    print_section("Basic Information", "👤")
+    print_section("Basic Information", "[PERSON]")
     
     # Helper function to print key-value pairs with descriptions
     def print_info(label, value, description=""):
@@ -398,21 +1343,36 @@ def print_agent_profile(bzid: str, agent_data: Dict, analysis: Dict) -> None:
     print_section("Credit Health", "💳")
     
     credit_limit = agent_data.get('Credit Limit')
-    credit_used = agent_data.get('Credit Line Balance')
+    credit_line_balance = agent_data.get('Credit Line Balance')
     
     # Print credit limit information
     limit_status = "\033[92m✓ Available" if pd.notnull(credit_limit) and credit_limit > 0 else "\033[93mNot Available"
     print_info("Credit Limit:", f"{fmt_curr(credit_limit)}  {limit_status}\033[0m", 
               "Total credit available to the agent")
     
+    # Get the pre-calculated credit used (GMV) from the agent data
+    credit_used = agent_data.get('GMV')
+    
+    # If GMV is not available, calculate it
+    if pd.isna(credit_used) and pd.notnull(credit_limit) and pd.notnull(credit_line_balance):
+        credit_used = credit_limit - max(0, credit_line_balance)  # Ensure non-negative
+    
     # Print credit used information
     used_status = "\033[93mNo Usage" if pd.notnull(credit_used) and credit_used == 0 else ""
     print_info("Credit Used:", f"{fmt_curr(credit_used)}  {used_status}\033[0m", 
-              "Current credit utilization")
+              f"Credit used (Credit Limit: {fmt_curr(credit_limit)} - Available: {fmt_curr(credit_line_balance)})")
+    
+    # Debug information
+    if pd.notnull(credit_limit) and pd.notnull(credit_line_balance) and pd.notnull(credit_used):
+        logger.debug(f"Credit Limit: {credit_limit}, Credit Line Balance: {credit_line_balance}, Credit Used: {credit_used}")
+    
+    # For backward compatibility with the rest of the function
+    credit_used_calc = credit_used
     
     # Calculate and display utilization with color coding and risk assessment
-    if pd.notnull(credit_limit) and credit_limit > 0 and pd.notnull(credit_used):
-        utilization = (credit_used / credit_limit) * 100
+    # Using Credit Used (Credit Limit - Credit Line Balance) for utilization calculation
+    if pd.notnull(credit_limit) and credit_limit > 0 and pd.notnull(credit_used_calc):
+        utilization = (credit_used_calc / credit_limit) * 100
         
         # Determine utilization risk level with emojis and colors
         if utilization < 30:
@@ -439,13 +1399,55 @@ def print_agent_profile(bzid: str, agent_data: Dict, analysis: Dict) -> None:
         
         # Add utilization gauge visualization
         gauge_width = 40
-        used_width = int((utilization / 100) * gauge_width)
-        gauge = "[" + "█" * used_width + " " * (gauge_width - used_width) + "]"
-        print(f"\n  {gauge} {utilization:.1f}%")
-        print("  " + " " * (gauge_width//2 - 3) + "↑ Ideal Range")
-        print("  " + " " * 5 + "0%" + " " * (gauge_width-15) + "30%" + " " * 10 + "70%" + " " * 10 + "100%")
-    else:
+        used_width = min(gauge_width, max(1, int(utilization / 100 * gauge_width)))
+        gauge = "[" + "=" * used_width + " " * (gauge_width - used_width) + "]"
+        print(f"\n  {gauge} {utilization:.1f}% utilized")
+        print("  " + "^" * (used_width + 1) + f" {utilization:.1f}%")
+        print("  " + "|" * (gauge_width + 2))
+        print("  0%" + " " * (gauge_width - 5) + "100%")
+        
+        # Add utilization risk assessment:
         print_info("Utilization:", "N/A", "Insufficient data to calculate credit utilization")
+    
+    # --- Agent Classification ---
+    print_section("Agent Classification", "📊")
+    
+    # Check if we have classification data from AgentClassifier
+    if 'classification' in analysis and analysis['classification']:
+        classification = analysis['classification']
+        tier = classification.get('tier', 'N/A')
+        description = classification.get('description', 'No description available')
+        action = classification.get('action', 'No action recommended')
+        
+        # Define tier colors and emojis
+        tier_colors = {
+            'P0': ('\033[92m', '✅'),  # Green
+            'P1': ('\033[93m', 'ℹ️'),  # Yellow
+            'P2': ('\033[91m', '⚠️'),  # Red
+            'P3': ('\033[93m', '🔍'),  # Yellow
+            'P4': ('\033[91m', '📚'),  # Red
+            'P5': ('\033[90m', '🚫'),  # Gray
+        }
+        
+        # Get color and emoji for the current tier
+        color, emoji = tier_colors.get(tier, ('\033[0m', '❓'))
+        
+        # Print tier with color and emoji
+        print(f"\n  {emoji} {color}Tier: {tier}\033[0m")
+        print(f"  {'─' * 75}")
+        print(f"  \033[1mDescription:\033[0m {description}")
+        print(f"  \033[1mRecommended Action:\033[0m {action}")
+        
+        # Add a visual indicator of the tier
+        if tier in ['P0', 'P1', 'P2', 'P3', 'P4', 'P5']:
+            tier_num = int(tier[1])
+            scale = "[P0│P1│P2│P3│P4│P5]"
+            marker = " " * (tier_num * 4 + 1) + "^"
+            print(f"\n  Tier Scale: {scale}")
+            print(f"  {' ' * 11}{marker} (Current: {tier})")
+    else:
+        print("\n  \033[93m⚠️ No classification data available\033[0m")
+        print("  Run the classification analysis to see agent tier and recommendations.")
     
     # --- Repayment Performance ---
     print_section("Repayment Performance", "💰")
@@ -755,24 +1757,29 @@ def main():
         except Exception as e:
             print(f"Failed to generate repayment metrics: {e}")
     
-    # Ensure Bzid column exists in all DataFrames and has consistent case
-    agents['Bzid'] = agents['Bzid'].astype(str).str.strip()
+    # Standardize column names to use uppercase BZID
+    agents.rename(columns={'Bzid': 'BZID'}, inplace=True)
+    
+    # Ensure BZID column has consistent format
+    agents['BZID'] = agents['BZID'].astype(str).str.strip()
     
     # Merge agent data with sales data first
     if not sales_data.empty and 'Bzid' in sales_data.columns:
-        agents = pd.merge(agents, sales_data, on='Bzid', how='left')
+        sales_data.rename(columns={'Bzid': 'BZID'}, inplace=True)
+        agents = pd.merge(agents, sales_data, on='BZID', how='left')
     else:
         print("Warning: Could not merge with sales data - region and organization info will be missing")
     
     # Then merge with repayment metrics
     if not repay_metrics.empty and 'Bzid' in repay_metrics.columns:
-        agent_data = pd.merge(agents, repay_metrics, on='Bzid', how='left')
+        repay_metrics.rename(columns={'Bzid': 'BZID'}, inplace=True)
+        agent_data = pd.merge(agents, repay_metrics, on='BZID', how='left')
     else:
         print("Warning: Could not merge with repayment metrics - using agent data only")
         agent_data = agents
     
     while True:
-        print("\nEnter Bzid to look up (or 'q' to quit): ")
+        print("\nEnter BZID to look up (or 'q' to quit): ")
         bzid = input().strip()
         
         if bzid.lower() == 'q':
@@ -781,10 +1788,10 @@ def main():
         if bzid == '':
             continue
             
-        agent = agent_data[agent_data['Bzid'] == bzid]
+        agent = agent_data[agent_data['BZID'].astype(str).str.strip() == bzid]
         
         if agent.empty:
-            print(f"Agent with Bzid {bzid} not found.")
+            print(f"Agent with BZID {bzid} not found.")
             continue
             
         # Convert agent data to dict for analysis
@@ -793,6 +1800,13 @@ def main():
         # Analyze agent data
         reporter = AgentReporter(agent_dict)
         analysis = reporter.analyze()
+        
+        # Classify the agent
+        classifier = AgentClassifier()
+        classification = classifier.classify_agent(agent_dict)
+        
+        # Add classification to analysis
+        analysis['classification'] = classification
         
         # Print the profile
         print_agent_profile(bzid, agent_dict, analysis)

@@ -124,7 +124,7 @@ This score acts as the backbone of the classification logic.
 
 ```
 Credit-Risk/
-├── data/
+├── source data/
 │   ├── raw/                 # Input Excel files
 │   └── processed/           # Transformed feature sets
 ├── output/

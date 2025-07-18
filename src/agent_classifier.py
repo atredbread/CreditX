@@ -192,14 +192,20 @@ class AgentClassifier:
             # Get risk indicators using a Series created from working_data
             risk_indicators = self._get_risk_indicators(pd.Series(working_data))
             
-            # Extract features with default values if missing
-            utilization = working_data.get('credit_utilization', 0)
+            # Extract features with default values if missing or invalid
+            utilization = working_data.get('credit_utilization')
+            if utilization is None or pd.isna(utilization):
+                utilization = 0.0
+                logger.debug(f"Warning: credit_utilization is None/NaN for agent {agent_id}, defaulting to 0.0")
+            
             repayment_score = working_data.get('repayment_score', 100)  # Assume good if missing
             gmv_trend = working_data.get('gmv_trend_6m', 0)
             credit_gmv_share = working_data.get('credit_gmv_share', 0)
-            delinquent_30p = working_data.get('delinquent_30p', False)
-            delinquent_60p = working_data.get('delinquent_60p', False)
-            delinquent_90p = working_data.get('delinquent_90p', False)
+            
+            # Safely get delinquency flags with type conversion
+            delinquent_30p = bool(working_data.get('delinquent_30p', False))
+            delinquent_60p = bool(working_data.get('delinquent_60p', False))
+            delinquent_90p = bool(working_data.get('delinquent_90p', False))
             
             # Log feature values with more detail
             logger.debug("\n=== AGENT FEATURES ===")
@@ -214,33 +220,48 @@ class AgentClassifier:
             logger.debug("====================\n")
             
             # P5: Churned - No recent activity or extreme delinquency
-            if (delinquent_90p or 
-                risk_indicators['dormant_agent'] or 
-                utilization == 0 or 
-                pd.isna(utilization)):
-                logger.debug("Classified as P5: Churned or no activity")
-                return self._get_tier_info('P5')
+            try:
+                if (delinquent_90p or 
+                    risk_indicators.get('dormant_agent', False) or 
+                    utilization == 0 or 
+                    pd.isna(utilization)):
+                    logger.debug("Classified as P5: Churned or no activity")
+                    return self._get_tier_info('P5')
+            except Exception as e:
+                logger.error(f"Error in P5 classification for agent {agent_id}: {str(e)}", exc_info=True)
+                return self._get_tier_info('P1')  # Default to P1 on error
                 
             # P4: Credit available but not used (very low utilization)
-            if risk_indicators['low_credit_utilization'] and credit_gmv_share < self.thresholds.LOW_GMV_SHARE:
-                logger.debug("Classified as P4: Credit available but not used")
-                return self._get_tier_info('P4')
+            try:
+                if (risk_indicators.get('low_credit_utilization', False) and 
+                    (credit_gmv_share or 0) < self.thresholds.LOW_GMV_SHARE):
+                    logger.debug("Classified as P4: Credit available but not used")
+                    return self._get_tier_info('P4')
+            except Exception as e:
+                logger.error(f"Error in P4 classification for agent {agent_id}: {str(e)}", exc_info=True)
                 
             # P2: High credit dependence with late payments
-            if (risk_indicators['high_credit_dependence'] and 
-                (delinquent_30p or delinquent_60p)):
-                logger.debug("Classified as P2: High credit dependence with late payments")
-                return self._get_tier_info('P2')
+            try:
+                if (risk_indicators.get('high_credit_dependence', False) and 
+                    (delinquent_30p or delinquent_60p)):
+                    logger.debug("Classified as P2: High credit dependence with late payments")
+                    return self._get_tier_info('P2')
+            except Exception as e:
+                logger.error(f"Error in P2 classification for agent {agent_id}: {str(e)}", exc_info=True)
                 
             # P0: High usage with good repayment and healthy metrics
             # Should be checked before P1 and P3 to prevent early classification
-            p0_conditions = {
-                'utilization > 0': utilization > 0,
-                'not high_credit_dependence': not risk_indicators['high_credit_dependence'],
-                'repayment_score >= GOOD_REPAYMENT': repayment_score >= self.thresholds.GOOD_REPAYMENT,
-                'credit_health_score >= 70': credit_health_score >= 70,
-                'no delinquency': not any([delinquent_30p, delinquent_60p, delinquent_90p])
-            }
+            try:
+                p0_conditions = {
+                    'utilization > 0': utilization > 0,
+                    'not high_credit_dependence': not risk_indicators.get('high_credit_dependence', True),
+                    'repayment_score >= GOOD_REPAYMENT': (repayment_score or 0) >= self.thresholds.GOOD_REPAYMENT,
+                    'credit_health_score >= 70': (credit_health_score or 0) >= 70,
+                    'no delinquency': not any([delinquent_30p, delinquent_60p, delinquent_90p])
+                }
+            except Exception as e:
+                logger.error(f"Error setting up P0 conditions for agent {agent_id}: {str(e)}", exc_info=True)
+                p0_conditions = {}  # Will cause P0 to be skipped
             
             logger.debug(f"P0 Classification Check for {agent_id}:")
             for condition, result in p0_conditions.items():
@@ -257,33 +278,38 @@ class AgentClassifier:
                         break
             
             # P3: Used & repaid but dropped off
-            # Check for agents who had meaningful credit activity but show declining trends
-            # Should be checked before P1 to prevent early classification
-            if (credit_gmv_share > self.thresholds.LOW_GMV_SHARE and  # Had meaningful credit activity
-                gmv_trend < self.thresholds.NEGATIVE_TREND and  # Negative trend
-                not any([delinquent_30p, delinquent_60p, delinquent_90p]) and  # No delinquency
-                repayment_score >= self.thresholds.GOOD_REPAYMENT):  # Good repayment history
-                
-                logger.debug(f"Classified as P3: Used & repaid but dropped off - "
-                           f"Credit GMV Share: {credit_gmv_share:.2f}, "
-                           f"GMV Trend: {gmv_trend:.2f}")
-                return self._get_tier_info('P3')
+            try:
+                if (credit_gmv_share > self.thresholds.LOW_GMV_SHARE and  # Had meaningful credit activity
+                    gmv_trend < self.thresholds.NEGATIVE_TREND and  # Negative trend
+                    not any([delinquent_30p, delinquent_60p, delinquent_90p]) and  # No delinquency
+                    (repayment_score or 0) >= self.thresholds.GOOD_REPAYMENT):  # Good repayment history
+                    
+                    logger.debug(f"Classified as P3: Used & repaid but dropped off - "
+                               f"Credit GMV Share: {credit_gmv_share:.2f}, "
+                               f"GMV Trend: {gmv_trend:.2f}")
+                    return self._get_tier_info('P3')
+            except Exception as e:
+                logger.error(f"Error in P3 classification for agent {agent_id}: {str(e)}", exc_info=True)
             
             # P1: Usage decline or slight delays
-            if (gmv_trend < self.thresholds.NEGATIVE_TREND or 
-                (delinquent_30p and not delinquent_60p) or
-                credit_health_score < self.thresholds.GOOD_REPAYMENT):  # Changed from POOR_REPAYMENT to GOOD_REPAYMENT
-                logger.debug("Classified as P1: Usage decline or slight delays")
-                return self._get_tier_info('P1')
+            try:
+                if ((gmv_trend or 0) < self.thresholds.NEGATIVE_TREND or 
+                    (delinquent_30p and not delinquent_60p) or
+                    (credit_health_score or 0) < self.thresholds.GOOD_REPAYMENT):  # Changed from POOR_REPAYMENT to GOOD_REPAYMENT
+                    logger.debug("Classified as P1: Usage decline or slight delays")
+                    return self._get_tier_info('P1')
+            except Exception as e:
+                logger.error(f"Error in P1 classification for agent {agent_id}: {str(e)}", exc_info=True)
+                return self._get_tier_info('P1')  # Default to P1 on error
                 
-            # Default to P1 if no other conditions met
-            logger.debug("No specific tier matched, defaulting to P1")
+        except Exception as e:
+            logger.error(f"Unexpected error in classify_agent for {agent_id}: {str(e)}", exc_info=True)
+            # Default to P1 on any unexpected error
             return self._get_tier_info('P1')
             
-        except Exception as e:
-            logger.error(f"Error classifying agent {agent_id}: {str(e)}")
-            # Return a default tier in case of errors
-            return self._get_tier_info('P1')
+        # Default to P1 if no other conditions matched
+        logger.debug("No specific tier matched, defaulting to P1")
+        return self._get_tier_info('P1')
     
     def classify_all_agents(self, features_df: pd.DataFrame) -> pd.DataFrame:
         """

@@ -128,10 +128,16 @@ def format_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
     
     return formatted
 
-def main():
-    # File path
-    input_file = Path('source_data/repayment report.csv')
-
+def analyze_repayments(input_file: str = 'source_data/repayment report.csv') -> pd.DataFrame:
+    """
+    Analyze repayment data and calculate credit health metrics.
+    
+    Args:
+        input_file: Path to the repayment report CSV file
+        
+    Returns:
+        DataFrame containing repayment metrics and scores for each agent
+    """
     try:
         # Load data
         df = pd.read_csv(input_file, encoding='utf-8')
@@ -159,33 +165,47 @@ def main():
         # Add principal-to-repayment ratio
         grouped['principal_ratio'] = grouped['total_principal_repaid'] / grouped['total_repayment_amount']
 
-        # --- Scoring System ---
         # Min-Max normalization for each metric
         def minmax(col):
             return (col - col.min()) / (col.max() - col.min()) if col.max() > col.min() else 1.0
         norm = grouped.apply(minmax)
 
         # Weighted score calculation
-        score = (
+        grouped['score'] = (
             0.25 * norm['total_repayment_amount'] +
             0.20 * norm['total_principal_repaid'] +
             0.15 * norm['transaction_count'] +
             0.15 * norm['avg_repayment_per_txn'] +
             0.10 * norm['avg_principal_per_txn'] +
             0.15 * norm['principal_ratio']
-        )
-        grouped['score'] = score.round(4)
+        ).round(4)
 
         # Sort by score for best agents
-        grouped = grouped.sort_values(by='score', ascending=False)
+        return grouped.sort_values(by='score', ascending=False)
 
-        # Display the full DataFrame
+    except Exception as e:
+        logger.error(f"Error analyzing repayments: {str(e)}", exc_info=True)
+        raise
+
+def main():
+    """Main entry point for command-line usage."""
+    try:
+        # File path
+        input_file = Path('source_data/repayment report.csv')
+        
+        # Analyze repayments
+        result = analyze_repayments(input_file)
+        
+        # Display the results
         pd.set_option('display.max_rows', 30)
         pd.set_option('display.float_format', lambda x: f'{x:,.2f}')
         print("\nAgent Repayment Metrics with Score (sorted by score):")
-        print(grouped)
+        print(result)
+        
+        return 0
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}", exc_info=True)
+        return 1
 
 if __name__ == "__main__":
     main()
