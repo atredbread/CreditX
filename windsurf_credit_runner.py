@@ -392,28 +392,21 @@ class CreditAnalyzerCLI:
                 self.show_warning("Please ensure your data files are in the 'source_data' directory.")
                 return False
                     
-            # List required data files
-            required_files = [
-                'credit_Agents.xlsx',
-                'DPD.xlsx',
-                'Credit_sales_data.xlsx',
-                'Credit_history_sales_vs_credit_sales.xlsx',
-                'sales_data.xlsx',
-                'repayment_report.xlsx',
-                'region_contact.xlsx'
-            ]
+            # Import REQUIRED_FILES from credit_health_engine
+            from src.credit_health_engine import REQUIRED_FILES
                 
             # Check for missing files
-            missing_files = [f for f in required_files 
+            missing_files = [f for f in REQUIRED_FILES.keys() 
                           if not (DEFAULT_DATA_DIR / f).exists()]
                 
             if missing_files:
                 self.show_error(f"Missing required data files: {', '.join(missing_files)}")
+                self.show_warning(f"Please ensure these files are in the '{DEFAULT_DATA_DIR}' directory.")
                 return False
                     
             # Initialize the engine if not already done
             if self.engine is None:
-                self.engine = CreditHealthEngine(DEFAULT_DATA_DIR)
+                self.engine = CreditHealthEngine()
                     
             # Load and validate data
             self.show_loading("Loading and validating data...")
@@ -528,50 +521,64 @@ class CreditAnalyzerCLI:
         if not hasattr(self, 'engine') or not self.engine:
             return False
                     
-        # Get available regions
-        regions = self.engine.get_available_regions()
-        if not regions:
-            self.show_error("No regions found in the data")
-            return False
-            
-        # Show region selection
-        region_options = [(r, r) for r in regions] + [("all", "All Regions")]
-        choice = self.display_menu("Select Region", region_options)
-        
-        if choice == 'q':
-            return False
-            
-        self.show_loading(f"Generating regional report for {choice}")
-        
+        # Get available regions if the method exists
         try:
-            report_path = self.engine.generate_regional_report(region=choice)
-            if report_path and report_path.exists():
-                self.show_success(f"Regional report saved to: {report_path}")
+            if hasattr(self.engine, 'get_available_regions'):
+                regions = self.engine.get_available_regions()
+                if regions:
+                    # Show region selection
+                    region_options = [(r, r) for r in regions] + [("all", "All Regions")]
+                    choice = self.display_menu("Select Region", region_options)
+                    
+                    if choice == 'q':
+                        return False
+                    
+                    self.show_loading(f"Generating report for {choice}")
+                else:
+                    self.show_loading("Generating report for all regions")
+            else:
+                self.show_loading("Generating reports")
+                
+            # Use the main generate_reports method
+            success = self.engine.generate_reports()
+            
+            if success:
+                self.show_success("Reports generated successfully!")
                 return True
             else:
-                self.show_error("Failed to generate regional report")
+                self.show_error("Failed to generate reports")
                 return False
+                
         except Exception as e:
-            self.show_error(f"Error generating regional report: {str(e)}")
+            self.show_error(f"Error generating reports: {str(e)}")
             if self.args.get('debug'):
                 import traceback
                 traceback.print_exc()
             return False
 
     def _generate_top_bottom_report(self) -> bool:
-        """Generate top/bottom agents report."""
-        self.show_loading("Generating top/bottom agents report")
+        """Generate top/bottom agents report.
+        
+        Note: This is now handled by the main generate_reports method.
+        """
+        self.show_loading("Generating reports (including top/bottom agents)")
         
         try:
-            report_path = self.engine.generate_top_bottom_report()
-            if report_path and report_path.exists():
-                self.show_success(f"Top/Bottom report saved to: {report_path}")
+            # Use the main generate_reports method
+            success = self.engine.generate_reports()
+            
+            if success:
+                self.show_success("Reports generated successfully!")
                 return True
             else:
-                self.show_error("Failed to generate top/bottom report")
+                self.show_error("Failed to generate reports")
                 return False
         except Exception as e:
-            self.show_error(f"Error generating top/bottom report: {str(e)}")
+            self.show_error(f"Error generating reports: {str(e)}")
+            if self.args.get('debug'):
+                import traceback
+                traceback.print_exc()
+            return False
         
         try:
             # Check if output directory exists
