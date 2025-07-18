@@ -217,13 +217,7 @@ Credit-Risk/
 | 3     | ML Clustering on usage/repayment | DS Team    | In Proposal |
 | 4     | Web dashboard                    | Product    | Exploratory |
 
-## 📞 Support & Contact
 
-For assistance, please contact:
-
-- **Support Email**: [credit-ops@example.com](mailto:credit-ops@example.com)
-- **System Admin**: [admin@example.com](mailto:admin@example.com)
-- **Office Hours**: Mon-Fri, 9AM-6PM IST
 
 ## 🔗 Related Documentation
 
