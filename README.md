@@ -1,21 +1,159 @@
-# Credit Risk Analysis System
+# Credit Health Intelligence Engine
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Standards](https://img.shields.io/badge/standards-unified-brightgreen)](docs/AGENT_CLASSIFICATION.md)
 
-A comprehensive credit risk analysis system for monitoring and classifying credit agents based on transaction history, repayment behavior, and sales performance.
+A unified credit risk analysis system for monitoring and managing agent credit health based on transaction history, repayment behavior, and business metrics.
 
-## 🚀 Key Features
+## 🏆 Key Features
 
-- **Automated Agent Classification**: Categorizes agents into P0-P5 tiers using advanced credit behavior analysis
-- **Risk Assessment**: Identifies high-risk agents and flags potential credit issues
-- **Comprehensive Reporting**: Generates detailed Excel reports and email-ready summaries
-- **Interactive Analysis**: Command-line interface for agent lookup and analysis
-- **Data Quality Monitoring**: Built-in validation and quality checks
-- **Trend Analysis**: Tracks credit utilization and sales trends over time
+- **Unified Agent Classification**: Standardized P0-P5 tiering with clear thresholds and actions
+- **Risk-Based Monitoring**: Identifies and categorizes risk factors with automated alerts
+- **Comprehensive Reporting**: Standardized Excel reports and markdown summaries
+- **Data Quality Framework**: Built-in validation and quality checks
+- **Trend Analysis**: 6-month GMV trend analysis with configurable thresholds
+- **Standardized Outputs**: Consistent file naming and directory structure
 
-## 📊 System Architecture
+## 🛠️ Getting Started
+
+### Prerequisites
+
+- Python 3.8+
+- pip package manager
+- Required Python packages (see `requirements.txt`)
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourorg/credit-risk.git
+   cd credit-risk
+   ```
+
+2. Create and activate a virtual environment:
+
+   ```bash
+   # Windows
+   python -m venv venv
+   .\venv\Scripts\activate
+   
+   # macOS/Linux
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Configuration
+
+1. Create a `.env` file in the project root with the following variables:
+   ```env
+   # Data paths
+   DATA_DIR=./data/raw
+   OUTPUT_DIR=./output
+   
+   # Logging
+   LOG_LEVEL=INFO
+   LOG_FILE=logs/credit_engine.log
+   ```
+
+2. Place your input files in the `data/raw/` directory:
+   - `credit_agents.csv`
+   - `credit_history_sales_vs_credit_sales.csv`
+   - `credit_sales_data.csv`
+   - `region_contact.csv`
+   - `dpd.csv`
+   - `sales_data.csv`
+
+### Usage
+
+1. Run the main analysis pipeline:
+
+   ```bash
+   python -m src.credit_health_engine
+   ```
+
+2. Generate reports for a specific region:
+
+   ```bash
+   python -m src.credit_health_engine --region "North"
+   ```
+
+3. Run tests:
+
+   ```bash
+   pytest tests/
+   ```
+
+## 📂 Project Structure
+
+```text
+credit-risk/
+├── config/                 # Configuration files
+├── data/                   # Data directories
+│   ├── raw/                # Raw input data (immutable)
+│   ├── processed/          # Processed data
+│   └── external/           # External data sources
+├── docs/                   # Documentation
+│   ├── AGENT_CLASSIFICATION.md
+│   ├── FEATURE_ENGINEERING_DOCS.md
+│   ├── DATA_DICTIONARY.md
+│   └── rule_book.md
+├── notebooks/              # Jupyter notebooks for analysis
+├── output/                 # Generated outputs
+│   ├── processed/          # Processed data files
+│   ├── region_reports/     # Regional analysis reports
+│   ├── email_summaries/    # Email-ready summaries
+│   └── logs/               # System logs
+├── scripts/                # Utility scripts
+│   ├── analysis/           # Analysis scripts
+│   ├── data_processing/    # Data processing scripts
+│   └── utils/              # Utility scripts
+├── src/                    # Source code
+│   └── credit_risk_analysis/
+│       ├── analysis/       # Analysis modules
+│       ├── data/           # Data processing
+│       ├── models/         # Model definitions
+│       └── utils/          # Utility functions
+├── tests/                  # Test files
+│   ├── unit/               # Unit tests
+│   └── integration/        # Integration tests
+├── .env.example           # Example environment variables
+├── .gitignore
+├── pyproject.toml         # Project metadata and dependencies
+└── requirements.txt       # Python dependencies
+```
+
+## 📚 Documentation
+
+### Core Documentation
+
+- [Agent Classification](docs/AGENT_CLASSIFICATION.md) - Detailed classification criteria and thresholds
+- [Feature Engineering](docs/FEATURE_ENGINEERING_DOCS.md) - Data processing and feature creation
+- [Data Dictionary](docs/DATA_DICTIONARY.md) - Comprehensive data schema and standards
+- [Rule Book](docs/rule_book.md) - Business rules and governance
+
+### Quick Reference
+
+#### Agent Classification Tiers
+
+| Tier | Name         | Key Characteristics                          | Action          |
+|------|--------------|----------------------------------------------|-----------------|
+| P0   | Healthy      | 20-50% utilization, ≥80 score, no DPD       | Nurture         |
+| P1   | Early Warning| Negative GMV trend or minor DPD              | Monitor         |
+| P2   | High Risk    | 60+ DPD or consistent late payments          | Escalate        |
+| P3   | Distressed   | 90+ DPD or score < 50                        | Restructure     |
+| P4   | Churned      | No transactions for 180+ days                | Exit            |
+| P5   | Inactive     | No credit utilization for 90+ days           | Re-engage       |
+
+## System Flow
 
 ```mermaid
 graph TD
@@ -29,83 +167,6 @@ graph TD
     style F fill:#bbf,stroke:#333
 ```
 
-## 📂 Project Structure
-
-```
-Credit Risk/
-├── data/                    # Input data files
-│   ├── raw/                 # Raw input data
-│   └── processed/           # Processed data files
-├── docs/                    # Documentation
-│   ├── AGENT_CLASSIFICATION.md  # Agent tier criteria
-│   ├── CONTEXT_MEMORY.md    # System architecture
-│   ├── CREDIT_SALES_ANALYZER_ALGORITHMS.md
-│   └── FEATURE_ENGINEERING_DOCS.md
-├── output/                  # Generated outputs
-│   ├── region_reports/      # Region-wise Excel reports
-│   └── email_summaries/     # Formatted email content
-├── src/                     # Source code
-│   ├── agent_classifier.py  # Agent classification logic
-│   ├── credit_health_engine.py  # Main processing engine
-│   ├── data_dictionary.py   # Data schema and validation
-│   ├── data_quality_checks.py
-│   └── feature_engineering.py
-├── tests/                   # Test suite
-│   ├── fixtures/            # Test data
-│   └── test_*.py            # Test scripts
-└── tools/                   # Utility scripts
-```
-
-## 🛠️ Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/credit-risk-analysis.git
-   cd credit-risk-analysis
-   ```
-
-2. **Create and activate a virtual environment**:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## 🚦 Quick Start
-
-1. **Prepare your data**:
-   - Place input files in the `data/raw/` directory
-   - Ensure files follow the required naming convention
-
-2. **Run the analysis**:
-   ```bash
-   python -m src.credit_health_engine
-   ```
-
-3. **View reports**:
-   - Check `output/region_reports/` for Excel files
-   - Find email summaries in `output/email_summaries/`
-
-## 📚 Documentation
-
-For detailed documentation, see the [docs](docs/) directory:
-
-- [Agent Classification](docs/AGENT_CLASSIFICATION.md): Detailed criteria for P0-P5 agent tiers
-- [System Architecture](docs/CONTEXT_MEMORY.md): Comprehensive system documentation
-- [Algorithms](docs/CREDIT_SALES_ANALYZER_ALGORITHMS.md): Technical details of calculations
-- [Feature Engineering](docs/FEATURE_ENGINEERING_DOCS.md): Data transformation processes
-
-## 🧪 Testing
-
-Run the test suite with:
-```bash
-pytest tests/
-```
-
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -116,17 +177,11 @@ pytest tests/
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 📧 Contact
 
-Your Name - [@your_twitter](https://twitter.com/your_username) - email@example.com
+For support or questions, please contact [support@example.com](mailto:support@example.com)
 
-Project Link: [https://github.com/yourusername/credit-risk-analysis](https://github.com/yourusername/credit-risk-analysis)
+---
 
-## 🙏 Acknowledgments
-
-- [Pandas](https://pandas.pydata.org/) - Data manipulation
-- [Scikit-learn](https://scikit-learn.org/) - Machine learning
-- [Matplotlib](https://matplotlib.org/) - Visualization
-- [Mermaid.js](https://mermaid-js.github.io/) - Diagrams

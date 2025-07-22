@@ -28,17 +28,18 @@ logger = logging.getLogger(__name__)
 class FeatureEngineer:
     """Handles feature engineering for credit health analysis."""
     
-    def __init__(self, data: Dict[str, pd.DataFrame], current_date: Optional[str] = None):
-        """
-        Initialize the feature engineer with raw data.
-        
-        Args:
-            data: Dictionary of DataFrames containing the input data
-            current_date: Reference date for calculations (YYYY-MM-DD format). 
-                        If None, uses current date.
-        """
+    def __init__(self, data: Dict[str, pd.DataFrame], current_date: Optional[Union[str, datetime]] = None):
+        """Initialize the FeatureEngineer with data and optional current date."""
         self.data = data
-        self.current_date = pd.to_datetime(current_date) if current_date else datetime.now()
+        self.current_date = pd.to_datetime(current_date) if current_date else pd.Timestamp.now()
+        self.weights = {
+            'total_repayment': 0.25,
+            'total_principal': 0.20,
+            'transaction_count': 0.15,
+            'avg_repayment': 0.15,
+            'avg_principal': 0.10,
+            'principal_ratio': 0.15
+        }
         self.features = pd.DataFrame()
     
     def calculate_credit_utilization(self) -> pd.Series:
@@ -92,78 +93,158 @@ class FeatureEngineer:
     
     def calculate_repayment_score(self) -> pd.Series:
         """
-        Calculate comprehensive repayment score incorporating DPD history, repayment patterns,
-        and risk indicators.
+        Calculate repayment score using a weighted combination of multiple metrics.
         
         Returns:
-            Series with repayment scores (300-900), where higher is better
+            Series with repayment scores (0-100), where higher is better
             
-        Scoring Components:
-        - Base Score: 500 points
-        - DPD History: -100 to +100 points based on DPD patterns
-        - Payment Behavior: -50 to +50 points based on payment consistency
-        - Risk Indicators: -100 to +100 points based on risk factors
-        - Trend Analysis: -50 to +50 points based on improvement/decline
+        Scoring Components and Weights:
+        - Total Repayment Amount: 25%
+        - Total Principal Repaid: 20%
+        - Number of Repayment Transactions: 15%
+        - Average Repayment Per Transaction: 15%
+        - Average Principal Per Transaction: 10%
+        - Principal-to-Total Repayment Ratio: 15%
         
-        Final score is scaled to 300-900 range (industry standard for credit scoring)
+        Each metric is normalized to a 0-1 scale using min-max scaling before
+        applying the weights. The final score is scaled to 0-100 range.
         """
-        logger.info("Calculating comprehensive repayment scores...")
+        logger.info("Calculating repayment scores using weighted metrics...")
         
         # Get required data using verified file names
-        dpd_data = self.data.get('DPD.xlsx')
         repayment_report = self.data.get('repayment report.csv')
-        agents_data = self.data.get('credit_Agents.xlsx')
         
-        if dpd_data is None:
-            logger.error("DPD.xlsx not found in input data")
-            return pd.Series()
+        if repayment_report is None or repayment_report.empty:
+            logger.error("repayment report.csv not found or empty in input data")
+            return pd.Series(dtype=float, name='repayment_score')
             
-        # Initialize scores with base value (500)
-        agent_ids = set(dpd_data['Bzid'].unique())
-        if agents_data is not None and not agents_data.empty:
-            agent_ids.update(agents_data['Bzid'].unique())
-        if repayment_report is not None and not repayment_report.empty:
-            # Using correct column name from repayment report
-            agent_col = 'All Anchors Onboarding Info - Anchor → Bzid'
-            if agent_col in repayment_report.columns:
-                agent_ids.update(repayment_report[agent_col].dropna().unique())
-            
-        if not agent_ids:
-            logger.error("No agent IDs found in input data")
-            return pd.Series()
-            
-        scores = pd.Series(500, index=list(agent_ids), name='repayment_score')
-        
         try:
-            # 1. Calculate DPD-based score component
-            dpd_scores = self._calculate_dpd_score_component(dpd_data)
-            if not dpd_scores.empty:
-                scores = scores.add(dpd_scores, fill_value=0)
+            # Standardize column names
+            col_mapping = {
+                'agent_id': ['All Anchors Onboarding Info - Anchor → Bzid', 'Bzid', 'bzid', 'agent_id', 'agentId'],
+                'repayment_amount': ['Customer Repayment Amount', 'repayment_amount', 'amount', 'Amount'],
+                'principal_amount': ['Customer Principle Repaid', 'principal_amount', 'principal'],
+                'transaction_date': ['Customer Repayment Date', 'transaction_date', 'date', 'Date'],
+                'due_date': ['due_date', 'Due Date', 'payment_due_date']
+            }
             
-            # 2. Calculate payment behavior component
-            payment_scores = self._calculate_payment_behavior(repayment_report)
-            if not payment_scores.empty:
-                scores = scores.add(payment_scores, fill_value=0)
+            # Find actual column names in the data
+            actual_cols = {}
+            for col_type, possible_names in col_mapping.items():
+                actual_col = next((name for name in possible_names if name in repayment_report.columns), None)
+                if actual_col is None and col_type != 'due_date':  # due_date is optional
+                    logger.warning(f"Could not find {col_type} in repayment data. Available: {repayment_report.columns.tolist()}")
+                    return pd.Series(dtype=float, name='repayment_score')
+                actual_cols[col_type] = actual_col
             
-            # 3. Apply risk adjustments
-            risk_adjustments = self._calculate_risk_adjustments(dpd_data, repayment_report)
-            if not risk_adjustments.empty:
-                scores = scores.add(risk_adjustments, fill_value=0)
+            # Create a working copy with standardized column names
+            working_data = repayment_report.rename(columns={
+                actual_cols['agent_id']: 'agent_id',
+                actual_cols['repayment_amount']: 'repayment_amount',
+                actual_cols['principal_amount']: 'principal_amount',
+                actual_cols['transaction_date']: 'transaction_date',
+                **({actual_cols['due_date']: 'due_date'} if 'due_date' in actual_cols else {})
+            }).copy()
             
-            # 4. Apply trend adjustments
-            trend_adjustments = self._calculate_trend_adjustments(dpd_data, repayment_report)
-            if not trend_adjustments.empty:
-                scores = scores.add(trend_adjustments, fill_value=0)
+            # Convert to numeric where needed
+            numeric_cols = ['repayment_amount', 'principal_amount']
+            for col in numeric_cols:
+                working_data[col] = pd.to_numeric(working_data[col], errors='coerce')
             
-            # Ensure scores are within bounds and handle missing values
-            scores = scores.clip(300, 900).round().astype(int)
+            # Convert dates to datetime
+            working_data['transaction_date'] = pd.to_datetime(working_data['transaction_date'], errors='coerce')
+            if 'due_date' in working_data.columns:
+                working_data['due_date'] = pd.to_datetime(working_data['due_date'], errors='coerce')
+            
+            # Filter for last 6 months of data
+            six_months_ago = self.current_date - pd.DateOffset(months=6)
+            recent_transactions = working_data[working_data['transaction_date'] >= six_months_ago]
+            
+            if recent_transactions.empty:
+                logger.warning("No transactions found in the last 6 months")
+                return pd.Series(dtype=float, name='repayment_score')
+            
+            # Calculate metrics for each agent
+            def calculate_metrics(df):
+                # Skip if empty
+                if df.empty:
+                    return pd.Series()
+                
+                metrics = {}
+                
+                # Basic metrics
+                metrics['total_repayment'] = df['repayment_amount'].sum()
+                metrics['total_principal'] = df['principal_amount'].sum()
+                metrics['transaction_count'] = len(df)
+                metrics['avg_repayment'] = metrics['total_repayment'] / metrics['transaction_count'] if metrics['transaction_count'] > 0 else 0
+                metrics['avg_principal'] = metrics['total_principal'] / metrics['transaction_count'] if metrics['transaction_count'] > 0 else 0
+                metrics['principal_ratio'] = metrics['total_principal'] / metrics['total_repayment'] if metrics['total_repayment'] > 0 else 0
+                
+                # Additional metrics for robustness
+                if 'due_date' in df.columns:
+                    is_late = df['transaction_date'] > df['due_date']
+                    metrics['on_time_ratio'] = 1 - (is_late.sum() / len(df)) if len(df) > 0 else 1
+                else:
+                    metrics['on_time_ratio'] = 1.0  # Assume on time if due date not available
+                
+                return pd.Series(metrics)
+            
+            # Calculate metrics for each agent
+            # Using group_keys=False and selecting only the columns we need to avoid the warning
+            agent_metrics = (
+                recent_transactions
+                .groupby('agent_id', group_keys=False)
+                [['repayment_amount', 'principal_amount', 'transaction_date'] + 
+                 (['due_date'] if 'due_date' in recent_transactions.columns else [])]
+                .apply(calculate_metrics)
+            )
+            
+            # Define weights for each metric
+            weights = {
+                'total_repayment': 0.25,
+                'total_principal': 0.20,
+                'transaction_count': 0.15,
+                'avg_repayment': 0.15,
+                'avg_principal': 0.10,
+                'principal_ratio': 0.15
+            }
+            
+            # Normalize metrics to 0-1 scale using min-max scaling
+            normalized_metrics = pd.DataFrame()
+            for metric in weights.keys():
+                if metric in agent_metrics.columns:
+                    min_val = agent_metrics[metric].min()
+                    max_val = agent_metrics[metric].max()
+                    if max_val > min_val:  # Avoid division by zero
+                        normalized_metrics[metric] = (agent_metrics[metric] - min_val) / (max_val - min_val)
+                    else:
+                        normalized_metrics[metric] = 1.0  # All values are the same, give max score
+                else:
+                    logger.warning(f"Metric {metric} not found in calculated metrics")
+                    normalized_metrics[metric] = 0.0  # Missing metric gets minimum score
+            
+            # Calculate weighted score using the instance's weights
+            scores = pd.Series(0.0, index=agent_metrics.index, name='repayment_score')
+            for metric, weight in self.weights.items():
+                if metric in normalized_metrics.columns:
+                    scores += normalized_metrics[metric] * weight
+            
+            # Scale to 0-100 range and round to 2 decimal places
+            scores = (scores * 100).round(2)
+            
+            # Cap at 100 and ensure no negative scores
+            scores = scores.clip(0, 100)
+            
+            # Convert any remaining NaN/None to empty Series
+            if scores.isna().any():
+                return pd.Series(dtype=float, name='repayment_score')
             
             logger.info(f"Calculated repayment scores for {len(scores)} agents")
             return scores
             
         except Exception as e:
             logger.error(f"Error calculating repayment scores: {str(e)}", exc_info=True)
-            return pd.Series(index=agent_ids, name='repayment_score')
+            return pd.Series(dtype=float, name='repayment_score')
     
     def _calculate_dpd_score_component(self, dpd_data: pd.DataFrame) -> pd.Series:
         """Calculate DPD-based score component (-100 to +100).

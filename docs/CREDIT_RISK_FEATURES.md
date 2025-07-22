@@ -134,13 +134,13 @@ Bzid     | Repayment Date       | Amount   | Principal
 #### **How the Score is Calculated**
 
 1. **Normalization (Min-Max Scaling):**
-   - Each metric is normalized to a 0–1 scale using the formula:
+   - Each repayment metric is normalized to a 0–1 scale using the formula:
      
      `X_norm = (X - X_min) / (X_max - X_min)`
    
    - This ensures all metrics are comparable regardless of their original scale.
 
-2. **Metrics and Weights:**
+2. **Repayment Metrics and Weights:**
    - **Total repayment amount:** 25%
    - **Total principal repaid:** 20%
    - **Transaction count:** 15%
@@ -148,15 +148,38 @@ Bzid     | Repayment Date       | Amount   | Principal
    - **Average principal per transaction:** 10%
    - **Principal-to-total repayment ratio:** 15%
 
-3. **Weighted Score Calculation:**
-   - The final score for each agent is computed as:
+3. **DPD (Days Past Due) Subscore:**
+   - Each agent's most recent DPD value is used to assign a DPD subscore:
+     - DPD = 0 days: **1.0**
+     - DPD 1–29 days: **0.7**
+     - DPD 30–59 days: **0.4**
+     - DPD ≥ 60 days: **0.1**
+     - If no DPD record: default to 1.0 (may be adjusted per governance)
+
+4. **Final Weighted Score Calculation:**
+   - Normalize the repayment score to 0–1:
      
-     `Score = 0.25 * Total Repayment_norm + 0.20 * Total Principal_norm + 0.15 * Txn Count_norm + 0.15 * Avg Repay_norm + 0.10 * Avg Principal_norm + 0.15 * Principal Ratio_norm`
-   
-   - Higher scores indicate better repayment behavior and credit health.
+     `repayment_score_norm = repayment_score / 100`
+   - Compute the final score as a weighted sum (example weights):
+     
+     `final_score = 0.7 * repayment_score_norm + 0.3 * DPD_subscore`
+   - Higher final scores indicate better overall credit health.
+
+5. **Risk Category Assignment:**
+   - Agents are assigned risk categories based on the percentile ranking of their **final score** within the population:
+     - **Low Risk:** Top 20% of scores
+     - **Medium Risk:** Middle 60% of scores
+     - **High Risk:** Bottom 20% of scores
+   - This approach ensures relative risk is assessed dynamically as the distribution of scores changes over time.
+
+**Example Calculation:**
+- Agent's normalized repayment score: **0.2851**
+- Most recent DPD: **4** (so DPD_subscore = **0.7**)
+- `final_score = 0.7 * 0.2851 + 0.3 * 0.7 = 0.4096`
+- Risk category depends on percentile of `final_score` among all agents.
 
 **Implementation Note:**
-- This scoring system is implemented in the repayment analysis script. Each agent receives a `score` column, and agents are ranked by this score for downstream risk classification or reporting.
+- This combined scoring and risk classification system is implemented in the repayment analysis script. Each agent receives a `final_score` and `risk_category` column, and agents are ranked by this score for downstream risk classification or reporting.
 
 ---
 

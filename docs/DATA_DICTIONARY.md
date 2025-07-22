@@ -1,22 +1,224 @@
 # Data Dictionary
 
-This document describes the structure and content of all input datasets.
+This document defines the unified data schema for the Credit Health Intelligence Engine. All data processing must adhere to these standards.
 
-## credit_Agents.xlsx
+## Data Integration Overview
 
-**Description**: Master list of onboarded agents with credit information
+The `Bzid` field serves as the primary business identifier that connects all data points across the Credit Health Intelligence Engine. This key-based integration enables comprehensive analysis by linking agent information with their transaction history, credit performance, and regional data.
 
-**Number of Rows**: 1,915
+### Key Integration Points:
 
-**Key Columns**: `Bzid`, `Phone`
+1. **Primary Data Source**: `credit_Agents.xlsx` serves as the master reference containing the complete list of onboarded agents. The `Bzid` in this file is the source of truth for all agent-related data.
 
-### Relationships
+2. **Data Linking**: All other datasets reference this primary key through either:
+   - Direct `Bzid` match (e.g., in DPD.xlsx, repayment_report.csv)
+   - `account` field that maps to `Bzid` (e.g., in sales_data.xlsx, Credit_sales_data.xlsx)
 
-- **Related to**: DPD.xlsx  
-  **On**: Bzid, Phone  
-  **Type**: one-to-one
+3. **Automatic Data Enrichment**: When processing any agent's data, the system automatically retrieves and combines related information from all datasets using these key relationships.
 
-### Columns
+4. **Example Integration Flow**:
+   - Start with `Bzid` from credit_Agents
+   - Retrieve DPD history using the same `Bzid`
+   - Match sales data via the `account` = `Bzid` relationship
+   - Enrich with regional information through region-based joins
+
+## 1. Data Sources
+
+### 1.1 Agent Details.xlsx
+
+**Description**: Comprehensive agent information including contact details, organizational hierarchy, and regional assignments. This is the primary source of truth for agent master data.
+
+**Location**: `/source_data/Agent Details.xlsx`
+
+**Key Columns**:
+- `account` (Primary Key, int64): Unique agent identifier that maps to `Bzid` in other datasets
+- `agentname` (string, encrypted): Agent's full name
+- `organizationname` (string): Legal business name
+- `RoName` (string, encrypted): Region Officer name
+- `RmName` (string, encrypted): Relationship Manager name
+- `email` (string, encrypted): Contact email
+- `mobile` (string, encrypted): Contact number
+- `city` (string): City code
+- `cityname` (string): Full city name
+- `state` (string): State code
+- `StateName` (string): Full state name
+- `region` (string): Region code
+- `AgentRegion` (string): Full region name
+- `agenttype` (string): Type of agent (e.g., BP_AGENT, OTHERS_NBP)
+- `status` (string): Account status (e.g., ACTIVE)
+- `SO?TSE` (string): Sales Officer/Territory Sales Executive
+
+**Relationships**:
+- **Primary Relationship**: `account` in this file maps to `Bzid` in all other datasets
+- **Related to**: All transaction and credit datasets
+  - **Join Key**: `account` = `Bzid`
+  - **Type**: one-to-many (one agent can have multiple transactions/records)
+
+**Data Quality Rules**:
+- `account` must be unique and non-null (matches `Bzid` in other datasets)
+- All encrypted fields must be properly formatted before encryption
+- Region codes must match standardized values from `Region_contact.xlsx`
+- Status must be one of: ACTIVE, INACTIVE, SUSPENDED
+- Email must be in valid format
+- Phone numbers must follow E.164 format
+
+**Usage Notes**:
+- This file serves as the master reference for all agent information
+- All new agents must be added here before they can be processed by the system
+- Changes to agent details should be made in this file and will be reflected across all reports
+
+### 1.2 credit_Agents.xlsx (Legacy)
+
+**Status**: Deprecated - Use `Agent Details.xlsx` as the primary source
+
+**Description**: Legacy list of onboarded agents. This file is being phased out in favor of `Agent Details.xlsx` which contains more comprehensive and up-to-date information.
+
+**Location**: `/data/raw/credit_Agents.xlsx`
+
+**Key Columns**: 
+- `Bzid` (Primary Key, String): The canonical identifier for all agent-related data across the platform. This is the single source of truth for agent identification.
+
+**Core Role in Data Integration**:
+- Serves as the **master reference** for all agent-related data
+- Defines the complete set of valid agents in the system
+- All other datasets must align with and connect to this master list
+- Any agent not present in this file is considered inactive or non-existent in the system
+
+**Relationships**:
+- **Related to**: All other datasets in the system
+  - **Join Key**: `Bzid` (or `account` in some datasets)
+  - **Type**: one-to-many (one agent can have multiple records in other datasets)
+  - **Example**: A single agent (Bzid: 323238238) can have:
+    - Multiple DPD records
+    - Multiple sales transactions
+    - Multiple repayment entries
+    - Multiple credit history entries
+
+**Data Quality Rules**:
+- `Bzid` must be unique and non-null across the entire platform
+- `Bzid` format must be strictly enforced (8-10 alphanumeric characters)
+- No duplicate `Bzid` values allowed
+- `Region` must match standardized region codes
+- Email must be in valid format
+- Phone numbers must be in E.164 format
+- All required fields must be populated for active agents
+
+### 1.2 repayment_report.csv
+
+**Description**: Records customer repayment transactions, including repayment date, total repaid amount, and principal repaid for each agent (Bzid). Used for repayment score calculations, cash flow analysis, and risk profiling.
+
+**Location**: `/source_data/repayment report.csv`
+
+**Key Columns**:
+- `Bzid` (Primary Key, int64): Unique agent identifier, maps to `account` in Agent Details.xlsx
+- `Customer Repayment Date` (datetime/string): Timestamp of repayment transaction (format: 'Month DD, YYYY, HH:MM AM/PM')
+- `Customer Repayment Amount` (float): Total amount repaid by the customer in the transaction
+- `Customer Principle Repaid` (float): Portion of the repayment applied to principal outstanding
+
+**Relationships**:
+- **Primary Relationship**: `Bzid` links to agent master data and all credit/transaction datasets
+- **Related to**: Agent Details.xlsx, DPD.xlsx, sales_data.xlsx, etc.
+  - **Join Key**: `Bzid`
+  - **Type**: one-to-many (one agent can have multiple repayment transactions)
+
+**Data Quality Rules**:
+- `Bzid` must be valid and present in Agent Details.xlsx
+- Dates must be valid and parsable to ISO 8601 (recommended to convert for processing)
+- Amount fields must be numeric and non-negative
+- No NULLs in required fields
+
+**Usage Notes**:
+- Used for daily repayment score calculations
+- Repayment events are aggregated by agent and time period for risk analytics
+- Data is retained for 7 years per governance policy
+
+### 1.3 DPD.xlsx (Days Past Due)
+
+**Description**: Tracks payment delays and defaults for each agent.
+
+**Location**: `/data/raw/DPD.xlsx`
+
+**Key Columns**: `Bzid`, `Date`, `DPD`
+
+**Relationships**:
+- **Related to**: credit_Agents.xlsx  
+  **Join Key**: `Bzid`  
+  **Type**: many-to-one (many DPD records can belong to one agent)
+
+## 2. Core Data Structures
+
+### 2.1 Agent Information
+
+| Column | Type | Description | Validation Rules |
+|--------|------|-------------|------------------|
+| Bzid | string | Unique agent identifier | Required, non-null, unique |
+| AgentName | string | Legal name of agent | Required, non-null |
+| Phone | string | Contact number | E.164 format |
+| Email | string | Contact email | Valid email format |
+| Region | string | Geographic region | Must match Region_contact.xlsx |
+| City | string | City name | Title case |
+| State | string | State/Province | Title case |
+| JoinDate | date | Date agent joined | YYYY-MM-DD |
+| CreditLimit | float | Total credit limit | Non-negative |
+| CurrentBalance | float | Current outstanding balance | Non-negative |
+| ActiveStatus | boolean | Whether agent is active | True/False |
+
+### 2.2 DPD (Days Past Due) Data
+
+| Column | Type | Description | Validation Rules |
+|--------|------|-------------|------------------|
+| Bzid | string | Agent identifier | Must exist in credit_Agents |
+| Date | date | Transaction date | YYYY-MM-DD |
+| DPD | integer | Days past due | 0 for on-time |
+| Amount | float | Amount in default | Non-negative |
+| Status | string | Payment status | ['current', '30_dpd', '60_dpd', '90+_dpd'] |
+| DueDate | date | Original due date | YYYY-MM-DD |
+| PaymentDate | date | Actual payment date | YYYY-MM-DD, nullable |
+
+## 3. Data Processing Standards
+
+### 3.1 Field Validation
+- All dates must be in ISO 8601 format (YYYY-MM-DD)
+- Numeric fields must not contain non-numeric characters
+- String fields must be properly encoded (UTF-8)
+- Boolean fields must be stored as True/False (not 1/0 or 'Yes'/'No')
+
+### 3.2 Data Types
+- **String**: Text data, including codes and identifiers
+- **Integer**: Whole numbers (e.g., DPD days, counts)
+- **Float**: Decimal numbers (e.g., amounts, percentages)
+- **Date**: Calendar dates (YYYY-MM-DD)
+- **Boolean**: True/False values
+
+## 4. Data Quality Rules
+
+### 4.1 Completeness
+- No NULL values in required fields
+- All foreign keys must reference existing records
+
+### 4.2 Consistency
+- Region codes must be consistent across all datasets
+- Date ranges must be valid (e.g., PaymentDate ≥ DueDate for late payments)
+
+### 4.3 Accuracy
+- DPD values must be non-negative integers
+- Credit utilization must be between 0-100%
+- No future dates allowed in historical data
+
+## 5. Data Retention
+
+| Data Type | Retention Period | Archive Location |
+|-----------|------------------|------------------|
+| Raw Data | 3 years | /data/archive/raw/ |
+| Processed Data | 2 years | /data/archive/processed/ |
+| Reports | 1 year | /data/archive/reports/ |
+
+## 6. Change Log
+
+| Date | Version | Changes | Author |
+|------|---------|---------|--------|
+| 2025-07-20 | 2.0 | Updated to unified standards | System |
+| 2025-01-15 | 1.0 | Initial version | Team |
 
 | Column | Data Type | Sample Values | Description |
 |--------|-----------|----------------|-------------|

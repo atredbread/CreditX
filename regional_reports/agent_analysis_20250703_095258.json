@@ -1,8 +1,0 @@
-{
-  "region": "Karnataka",
-  "error": "Failed to generate regional summary",
-  "details": "'<' not supported between instances of 'NoneType' and 'NoneType'",
-  "timestamp": "2025-07-03T09:52:58.871858",
-  "status": "success",
-  "analysis_duration_seconds": 0.28
-}

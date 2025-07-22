@@ -453,6 +453,12 @@ class CreditHealthEngine:
             logger.error(f"Error loading {file_path.name}: {str(e)}", exc_info=True)
             return None
     
+    def _normalize_region_name(self, region_name: Optional[str]) -> str:
+        """Normalize region names to handle variations and missing values."""
+        if pd.isna(region_name) or not str(region_name).strip():
+            return 'Unassigned'
+        return str(region_name).strip().title()
+
     def _map_data_to_agents(self) -> bool:
         """
         Map all data to credit agents (like VLOOKUP) to ensure complete coverage.
@@ -466,8 +472,16 @@ class CreditHealthEngine:
                 return False
                 
             agents = self.data['credit_Agents.xlsx']
+            
+            # Ensure Bzid is string type for consistent comparison
+            agents['Bzid'] = agents['Bzid'].astype(str)
             agent_ids = set(agents['Bzid'].dropna().unique())
             logger.info(f"Found {len(agent_ids)} unique agent IDs in credit_Agents.xlsx")
+            
+            # Normalize region data if present
+            if 'Region' in agents.columns:
+                agents['Region'] = agents['Region'].apply(self._normalize_region_name)
+                logger.info(f"Found {len(agents['Region'].unique())} unique regions in agent data")
             
             # Track which agents are missing from each dataset
             missing_agents = {}
@@ -734,40 +748,72 @@ class CreditHealthEngine:
             writer = pd.ExcelWriter(output_file, engine='xlsxwriter')
             
             # 1. Summary Sheet
+            summary_metrics = [
+                ('Total Agents', lambda: len(region_data)),
+                ('P0 Agents', lambda: len(region_data[region_data['tier'] == 'P0'])),
+                ('P1 Agents', lambda: len(region_data[region_data['tier'] == 'P1'])),
+                ('P4 Agents', lambda: len(region_data[region_data['tier'] == 'P4'])),
+                ('Avg Credit Utilization', lambda: region_data['credit_utilization'].mean() if 'credit_utilization' in region_data else 'N/A'),
+                ('Avg Repayment Score', lambda: region_data['repayment_score'].mean() if 'repayment_score' in region_data else 'N/A'),
+                ('Total GMV (Last 6M)', lambda: region_data['gmv_6m'].sum() if 'gmv_6m' in region_data else 'N/A'),
+                ('Avg DPD', lambda: region_data['avg_dpd'].mean() if 'avg_dpd' in region_data else 'N/A')
+            ]
+            
+            # Calculate metrics with error handling
+            metrics = []
+            values = []
+            for metric_name, metric_func in summary_metrics:
+                try:
+                    value = metric_func()
+                    metrics.append(metric_name)
+                    values.append(value)
+                except Exception as e:
+                    logger.warning(f"Could not calculate metric '{metric_name}': {str(e)}")
+            
             summary_data = {
-                'Metric': ['Total Agents', 'P0 Agents', 'P1 Agents', 'P4 Agents',
-                         'Avg Credit Utilization', 'Avg Repayment Score',
-                         'Total GMV (Last 6M)', 'Avg DPD'],
-                'Value': [
-                    len(region_data),
-                    len(region_data[region_data['tier'] == 'P0']),
-                    len(region_data[region_data['tier'] == 'P1']),
-                    len(region_data[region_data['tier'] == 'P4']),
-                    region_data['credit_utilization'].mean(),
-                    region_data['repayment_score'].mean(),
-                    region_data['gmv_6m'].sum(),
-                    region_data['avg_dpd'].mean()
-                ]
+                'Metric': metrics,
+                'Value': values
             }
             summary_df = pd.DataFrame(summary_data)
             summary_df.to_excel(writer, sheet_name='Summary', index=False)
             
             # 2. Agent Details Sheet
-            agent_cols = ['Bzid', 'Name', 'tier', 'tier_description', 'recommended_action',
-                         'credit_utilization', 'repayment_score', 'gmv_6m', 'avg_dpd']
-            agent_details = region_data[agent_cols].copy()
+            agent_cols = ['Bzid', 'Name', 'tier', 'tier_description', 'recommended_action']
+            # Add optional columns if they exist
+            optional_cols = ['credit_utilization', 'repayment_score', 'gmv_6m', 'avg_dpd']
+            for col in optional_cols:
+                if col in region_data.columns:
+                    agent_cols.append(col)
+            
+            # Only include columns that exist in the dataframe
+            existing_cols = [col for col in agent_cols if col in region_data.columns]
+            agent_details = region_data[existing_cols].copy()
             agent_details.to_excel(writer, sheet_name='Agent Details', index=False)
             
             # 3. Risk Analysis Sheet
-            risk_cols = ['Bzid', 'Name', 'tier', 'delinquent_30p', 'delinquent_60p',
-                        'delinquent_90p', 'dpd_trend_3m', 'credit_utilization']
-            risk_analysis = region_data[risk_cols].copy()
+            risk_cols = ['Bzid', 'Name', 'tier']
+            optional_risk_cols = ['delinquent_30p', 'delinquent_60p', 'delinquent_90p', 
+                               'dpd_trend_3m', 'credit_utilization']
+            for col in optional_risk_cols:
+                if col in region_data.columns:
+                    risk_cols.append(col)
+            
+            # Only include columns that exist in the dataframe
+            existing_risk_cols = [col for col in risk_cols if col in region_data.columns]
+            risk_analysis = region_data[existing_risk_cols].copy()
             risk_analysis.to_excel(writer, sheet_name='Risk Analysis', index=False)
             
             # 4. Performance Metrics Sheet
-            perf_cols = ['Bzid', 'Name', 'gmv_6m', 'gmv_trend_6m', 'credit_gmv_share',
-                        'repayment_score', 'on_time_payment_rate']
-            perf_metrics = region_data[perf_cols].copy()
+            perf_cols = ['Bzid', 'Name']
+            optional_perf_cols = ['gmv_6m', 'gmv_trend_6m', 'credit_gmv_share',
+                               'repayment_score', 'on_time_payment_rate']
+            for col in optional_perf_cols:
+                if col in region_data.columns:
+                    perf_cols.append(col)
+            
+            # Only include columns that exist in the dataframe
+            existing_perf_cols = [col for col in perf_cols if col in region_data.columns]
+            perf_metrics = region_data[existing_perf_cols].copy()
             perf_metrics.to_excel(writer, sheet_name='Performance', index=False)
             
             # Format the Excel file
@@ -790,29 +836,41 @@ class CreditHealthEngine:
             for sheet_name in writer.sheets:
                 worksheet = writer.sheets[sheet_name]
                 
+                # Get the appropriate dataframe for this sheet
+                if sheet_name == 'Agent Details':
+                    df = region_data
+                elif sheet_name == 'Performance':
+                    df = perf_metrics
+                else:
+                    df = region_data  # Fallback to region_data for any other sheets
+                               
                 # Set column widths and formats
-                for col_num, value in enumerate(writer.sheets[sheet_name]._image_data):
-                    max_length = 0
-                    column = value[0]
-                    
-                    # Find the maximum length of the column content
-                    column_length = max(
-                        region_data[column].astype(str).apply(len).max(),
-                        len(str(column))
-                    )
-                    
-                    # Set column width
-                    worksheet.set_column(col_num, col_num, min(column_length + 2, 30))
-                    
-                    # Apply number formats
-                    if 'utilization' in column or 'trend' in column or 'rate' in column:
-                        worksheet.set_column(col_num, col_num, None, pct_format)
-                    elif any(x in column for x in ['gmv', 'score', 'dpd']):
-                        worksheet.set_column(col_num, col_num, None, num_format)
-                
-                # Format headers
-                for col_num, value in enumerate(writer.sheets[sheet_name]._image_data):
-                    worksheet.write(0, col_num, value[0], header_format)
+                for col_num, column in enumerate(df.columns):
+                    try:
+                        # Find the maximum length of the column content
+                        if not df[column].empty:
+                            max_content_length = df[column].astype(str).apply(len).max()
+                            column_length = max(max_content_length, len(str(column)))
+                        else:
+                            column_length = len(str(column))
+                        
+                        # Set column width with bounds
+                        worksheet.set_column(col_num, col_num, min(column_length + 2, 30))
+                        
+                        # Apply number formats based on column name patterns
+                        col_name = str(column).lower()
+                        if any(x in col_name for x in ['utilization', 'trend', 'rate', 'ratio']):
+                            worksheet.set_column(col_num, col_num, None, pct_format)
+                        elif any(x in col_name for x in ['gmv', 'score', 'dpd', 'amount', 'value']):
+                            worksheet.set_column(col_num, col_num, None, num_format)
+                            
+                        # Format header
+                        worksheet.write(0, col_num, column, header_format)
+                        
+                    except Exception as e:
+                        logger.warning(f"Could not format column '{column}' in sheet '{sheet_name}': {str(e)}")
+                        # Still try to set a basic header even if formatting fails
+                        worksheet.write(0, col_num, column, header_format)
             
             return writer
             

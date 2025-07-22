@@ -45,12 +45,15 @@ class RegionalAnalyzer:
         self.output_dir = Path(output_dir)
         self.agent_data = {}
         self.regions = set()
+        self.region_metrics = {}
         self.metrics = [
             'score', 'gmv', 'dpd', 'utilization',
-            'repayment_rate', 'credit_sales_ratio', 'risk_score'
+            'repayment_rate', 'credit_sales_ratio', 'risk_score',
+            'total_agents', 'avg_score', 'delinquency_rate'
         ]
         self._ensure_output_structure()
         self.load_agent_data()
+        self._calculate_region_metrics()
     
     def _ensure_output_structure(self) -> None:
         """Ensure the output directory structure exists."""
@@ -116,6 +119,58 @@ class RegionalAnalyzer:
         except Exception as e:
             logger.error(f"Error in load_agent_data: {e}")
             raise
+    
+    def _calculate_region_metrics(self) -> None:
+        """Calculate aggregate metrics for each region."""
+        if not self.agent_data:
+            return
+            
+        region_data = {}
+        
+        # Initialize region data
+        for region in self.regions:
+            region_data[region] = {
+                'total_agents': 0,
+                'scores': [],
+                'delinquent_count': 0,
+                'total_gmv': 0,
+                'total_dpd': 0
+            }
+        
+        # Aggregate metrics by region
+        for agent_id, agent in self.agent_data.items():
+            region = agent.get('region', 'Unassigned')
+            if region not in region_data:
+                region_data[region] = {
+                    'total_agents': 0,
+                    'scores': [],
+                    'delinquent_count': 0,
+                    'total_gmv': 0,
+                    'total_dpd': 0
+                }
+                
+            region_data[region]['total_agents'] += 1
+            region_data[region]['scores'].append(agent.get('score', 0))
+            
+            # Count delinquent agents (DPD > 30 days)
+            if agent.get('dpd', 0) > 30:
+                region_data[region]['delinquent_count'] += 1
+                
+            # Sum GMV and DPD for averages
+            region_data[region]['total_gmv'] += agent.get('gmv', 0)
+            region_data[region]['total_dpd'] += agent.get('dpd', 0)
+        
+        # Calculate final metrics
+        self.region_metrics = {}
+        for region, data in region_data.items():
+            agent_count = data['total_agents'] or 1  # Avoid division by zero
+            self.region_metrics[region] = {
+                'total_agents': data['total_agents'],
+                'avg_score': sum(data['scores']) / len(data['scores']) if data['scores'] else 0,
+                'delinquency_rate': (data['delinquent_count'] / agent_count) * 100,
+                'avg_gmv': data['total_gmv'] / agent_count,
+                'avg_dpd': data['total_dpd'] / agent_count
+            }
     
     def rank_agents(
         self, 
@@ -188,6 +243,33 @@ class RegionalAnalyzer:
             logger.error(f"Error ranking agents by {metric}: {e}", exc_info=True)
             return [], []
     
+    def get_region_summary(self, region: str = 'all') -> Dict[str, Any]:
+        """
+        Get summary statistics for a specific region or all regions.
+        
+        Args:
+            region: The region to get summary for, or 'all' for combined stats
+            
+        Returns:
+            Dictionary containing region summary statistics
+        """
+        if not self.region_metrics:
+            return {}
+            
+        if region.lower() == 'all':
+            # Calculate combined metrics across all regions
+            combined = {
+                'total_agents': sum(m['total_agents'] for m in self.region_metrics.values()),
+                'avg_score': sum(m['avg_score'] * m['total_agents'] for m in self.region_metrics.values()) / 
+                            sum(m['total_agents'] for m in self.region_metrics.values()),
+                'delinquency_rate': sum(m['delinquency_rate'] * m['total_agents'] for m in self.region_metrics.values()) / 
+                                  sum(m['total_agents'] for m in self.region_metrics.values()),
+                'total_regions': len(self.region_metrics)
+            }
+            return combined
+            
+        return self.region_metrics.get(region, {})
+        
     def generate_report(
         self, 
         region: str = 'all',
@@ -195,7 +277,7 @@ class RegionalAnalyzer:
         top_n: int = 10
     ) -> Dict[str, Any]:
         """
-        Generate a report of top and bottom performing agents.
+        Generate a report of top and bottom performing agents with region metrics.
         
         Args:
             region: The region to generate the report for, or 'all' for all regions
