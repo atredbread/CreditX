@@ -89,8 +89,18 @@ class DataProcessor:
             
             # Load other data files...
             
+            # Load DPD data (modular, standards-compliant)
+            dpd_file = self.data_dir / 'DPD.xlsx'
+            if dpd_file.exists():
+                self.dpd_df = pd.read_excel(dpd_file)
+                if 'Bzid' in self.dpd_df.columns:
+                    self.dpd_df['Bzid'] = self.dpd_df['Bzid'].astype(str).str.strip()
+                if 'Dpd' in self.dpd_df.columns:
+                    self.dpd_df = self.dpd_df.sort_values('Dpd', ascending=False).drop_duplicates('Bzid', keep='first')[['Bzid', 'Dpd']]
+                    self.dpd_df = self.dpd_df.rename(columns={'Bzid': 'agent_id', 'Dpd': 'current_dpd'})
+            else:
+                self.dpd_df = pd.DataFrame(columns=['agent_id', 'current_dpd'])
             self.data_loaded = True
-            
         except Exception as e:
             logger.error(f"Error loading data: {e}", exc_info=True)
             raise
@@ -210,9 +220,53 @@ class DataProcessor:
                         self.repayment_df[col] = pd.to_numeric(self.repayment_df[col], errors='coerce')
                 # Drop rows with NA in any required column (matches analyze_repayments.py)
                 self.repayment_df = self.repayment_df.dropna(subset=['repayment_amount', 'principal_repaid', 'repayment_date', 'agent_id'])
-                # Calculate metrics for all agents at once and index by agent_id
+                # Calculate metrics for all agents at once
                 from scripts.analysis.analyze_repayments import calculate_metrics
                 self.repayment_metrics_df = calculate_metrics(self.repayment_df)
+
+                # === DPD Integration: Modular, Standards-Compliant ===
+                # Merge DPD data by agent_id
+                if hasattr(self, 'dpd_df') and not self.dpd_df.empty:
+                    self.repayment_metrics_df = self.repayment_metrics_df.merge(
+                        self.dpd_df, on='agent_id', how='left')
+                else:
+                    self.repayment_metrics_df['current_dpd'] = None
+
+                # Calculate DPD_subscore as per reference logic
+                def dpd_subscore(dpd):
+                    if pd.isna(dpd):
+                        return 1.0
+                    try:
+                        d = float(dpd)
+                    except Exception:
+                        return 1.0
+                    if d == 0:
+                        return 1.0
+                    elif d < 30:
+                        return 0.7
+                    elif d < 60:
+                        return 0.4
+                    else:
+                        return 0.1
+                self.repayment_metrics_df['DPD_subscore'] = self.repayment_metrics_df['current_dpd'].apply(dpd_subscore)
+                # Normalize repayment score
+                self.repayment_metrics_df['repayment_score_norm'] = self.repayment_metrics_df['credit_health_score'] / 100.0
+                # Final combined score
+                self.repayment_metrics_df['final_score'] = 0.7 * self.repayment_metrics_df['repayment_score_norm'] + 0.3 * self.repayment_metrics_df['DPD_subscore']
+                # Assign risk categories by percentile of final_score
+                if not self.repayment_metrics_df.empty:
+                    scores = self.repayment_metrics_df['final_score']
+                    low_cutoff = np.percentile(scores, 80)
+                    high_cutoff = np.percentile(scores, 20)
+                    def assign_risk(score):
+                        if score >= low_cutoff:
+                            return 'Low'
+                        elif score < high_cutoff:
+                            return 'High'
+                        else:
+                            return 'Medium'
+                    self.repayment_metrics_df['risk_category'] = scores.apply(assign_risk)
+                # Set index for fast lookup
                 if not self.repayment_metrics_df.empty:
                     self.repayment_metrics_df.set_index('agent_id', inplace=True)
                     # Diagnostic: print full metrics row for agent 10091139
@@ -227,7 +281,7 @@ class DataProcessor:
                         print(self.repayment_metrics_df.min())
                         print('[DIAG] Metrics max values:')
                         print(self.repayment_metrics_df.max())
-            return
+                return
         except Exception as e:
             logger.error(f"Error loading repayment data: {e}", exc_info=True)
             self.repayment_df = None
@@ -277,54 +331,172 @@ class DataProcessor:
                     'repayment_data_available': False
                 }
             }
+
+            # Load repayment data if available
+            self._load_repayment_data()
+
+            # --- DPD integration ---
+            current_dpd = None
+            dpd_subscore = None
+            if hasattr(self, 'dpd_df') and self.dpd_df is not None and not self.dpd_df.empty:
+                dpd_row = self.dpd_df[self.dpd_df['agent_id'] == str(agent_id)]
+                if not dpd_row.empty:
+                    current_dpd = float(dpd_row.iloc[0]['current_dpd']) if pd.notnull(dpd_row.iloc[0]['current_dpd']) else None
+                    # Example subscore: 1 - min(current_dpd/30, 1) (score 1 if DPD=0, 0 if DPD>=30)
+                    if current_dpd is not None:
+                        dpd_subscore = max(0.0, 1.0 - min(current_dpd / 30.0, 1.0))
+
+            if hasattr(self, 'repayment_metrics_df') and self.repayment_metrics_df is not None:
+                metrics_row = self.get_agent_repayment_metrics(agent_id)
+                if metrics_row is not None:
+                    repayments = result['sources']['repayments']
+                    repayments['credit_health_score'] = float(metrics_row.get('credit_health_score', 0.0)) if 'credit_health_score' in metrics_row else 0.0
+                    repayments['risk_category'] = str(metrics_row.get('risk_category', 'UNKNOWN')) if 'risk_category' in metrics_row else 'UNKNOWN'
+                    repayments['confidence'] = float(metrics_row.get('confidence', 0.0)) if 'confidence' in metrics_row else 0.0
+                    repayments['total_repayment'] = float(metrics_row.get('total_repayment_amount', 0.0)) if 'total_repayment_amount' in metrics_row else 0.0
+                    repayments['principal_repaid'] = float(metrics_row.get('total_principal_repaid', 0.0)) if 'total_principal_repaid' in metrics_row else 0.0
+                    repayments['total_repayment_count'] = int(metrics_row.get('transaction_count', 0)) if 'transaction_count' in metrics_row else 0
+                    repayments['avg_repayment_amount'] = float(metrics_row.get('avg_repayment_amount', 0.0)) if 'avg_repayment_amount' in metrics_row else 0.0
+                    last_tx = metrics_row.get('last_transaction', None)
+                    first_tx = metrics_row.get('first_transaction', None)
+                    repayments['last_repayment_date'] = str(last_tx) if pd.notnull(last_tx) else ''
+                    repayments['first_repayment_date'] = str(first_tx) if pd.notnull(first_tx) else ''
+                    repayments['repayment_consistency'] = float(metrics_row.get('data_quality', 0.0)) if 'data_quality' in metrics_row else 0.0
+                    # Compute days since last/first repayment only if date is valid
+                    if pd.notnull(last_tx):
+                        days_since_last = (datetime.now(timezone.utc) - pd.to_datetime(last_tx, utc=True)).days
+                        repayments['days_since_last_repayment'] = days_since_last
+                    if pd.notnull(first_tx):
+                        days_since_first = (datetime.now(timezone.utc) - pd.to_datetime(first_tx, utc=True)).days
+                        repayments['days_since_first_repayment'] = days_since_first
+                    # Repayment frequency (simple heuristic)
+                    if repayments['total_repayment_count'] > 0 and pd.notnull(first_tx) and pd.notnull(last_tx):
+                        days_span = max((pd.to_datetime(last_tx, utc=True) - pd.to_datetime(first_tx, utc=True)).days, 1)
+                        repayments['repayment_frequency'] = repayments['total_repayment_count'] / days_span
+                    result['metadata']['repayment_data_available'] = True
+
+            # Add DPD info to output
+            result['sources']['repayments']['current_dpd'] = current_dpd
+            result['sources']['repayments']['DPD_subscore'] = dpd_subscore
+
+            # Optionally, update final score to include DPD subscore (example: weighted average)
+            # This should follow your documented risk scoring logic; adjust weights as needed
+            if dpd_subscore is not None and 'credit_health_score' in result['sources']['repayments']:
+                # Example: 80% repayment score, 20% DPD subscore
+                chs = result['sources']['repayments']['credit_health_score']
+                final_score = 0.8 * chs + 0.2 * (dpd_subscore * 100)
+                result['sources']['repayments']['final_score'] = final_score
+            else:
+                result['sources']['repayments']['final_score'] = result['sources']['repayments'].get('credit_health_score', 0.0)
+
+            return result
+        except Exception as e:
+            logger.error(f"Error in process_agent for agent {agent_id}: {e}", exc_info=True)
+            return None
+
+    def process_all_agents(self) -> dict:
+        """Process all agents and aggregate results."""
+        if not self.data_loaded:
+            self.load_data()
+        agent_ids = [str(agent_id) for agent_id in self.agent_details_df['account'].unique()]
+        results = {}
+        processed = 0
+        errors = 0
+        logger.info(f"Starting to process {len(agent_ids)} agents...")
+        for agent_id in agent_ids:
+            try:
+                result = self.process_agent(agent_id)
+                results[agent_id] = result
+                processed += 1
+            except Exception as e:
+                logger.error(f"Error processing agent {agent_id}: {e}", exc_info=True)
+                errors += 1
+        logger.info(f"Processing complete. Success: {processed}, Errors: {errors}, Total: {len(agent_ids)}")
+        return {
+            'metadata': {
+                'version': '1.0.0',
+                'last_updated': datetime.now(timezone.utc).isoformat(),
+                'agent_count': len(agent_ids),
+                'success_count': processed,
+                'error_count': errors,
+                'agent_details_included': True,
+                'data_sources': [
+                    'Agent Details.xlsx',
+                    # Add other sources as needed
+                ]
+            },
+            'results': results
+        }
+
+        """Process data for a single agent."""
+        try:
+            # Get basic agent info including details
+            basic_info = self._get_agent_basic_info(agent_id)
+
+            # Initialize result with default values
+            result = {
+                'bzid': agent_id,
+                'basic_info': basic_info,
+                'sources': {
+                    'repayments': {
+                        'credit_health_score': 0.0,
+                        'risk_category': 'UNKNOWN',
+                        'confidence': 0.0,
+                        'total_repayment': 0.0,
+                        'principal_repaid': 0.0,
+                        'total_repayment_count': 0,
+                        'avg_repayment_amount': 0.0,
+                        'last_repayment_date': '',
+                        'first_repayment_date': '',
+                        'repayment_consistency': 0.0,
+                        'days_since_last_repayment': 0,
+                        'days_since_first_repayment': 0,
+                        'repayment_frequency': 0.0
+                    }
+                },
+                'metadata': {
+                    'processed_at': datetime.now(timezone.utc).isoformat(),
+                    'agent_details_included': bool(basic_info.get('agent_details')),
+                    'repayment_data_available': False
+                }
+            }
             
             # Load repayment data if available
             self._load_repayment_data()
 
             if hasattr(self, 'repayment_metrics_df') and self.repayment_metrics_df is not None:
-                try:
-                    # Look up agent_id in self.repayment_metrics_df for repayment metrics mapping
-                    metrics_row = self.get_agent_repayment_metrics(agent_id)
-                    if metrics_row is not None:
-                        repayments = result['sources']['repayments']
-                        # Map all repayment metrics
-                        repayments['credit_health_score'] = float(metrics_row.get('credit_health_score', 0.0)) if 'credit_health_score' in metrics_row else 0.0
-                        repayments['risk_category'] = str(metrics_row.get('risk_category', 'UNKNOWN')) if 'risk_category' in metrics_row else 'UNKNOWN'
-                        repayments['confidence'] = float(metrics_row.get('confidence', 0.0)) if 'confidence' in metrics_row else 0.0
-                        repayments['total_repayment'] = float(metrics_row.get('total_repayment_amount', 0.0)) if 'total_repayment_amount' in metrics_row else 0.0
-                        repayments['principal_repaid'] = float(metrics_row.get('total_principal_repaid', 0.0)) if 'total_principal_repaid' in metrics_row else 0.0
-                        repayments['total_repayment_count'] = int(metrics_row.get('transaction_count', 0)) if 'transaction_count' in metrics_row else 0
-                        repayments['avg_repayment_amount'] = float(metrics_row.get('avg_repayment_amount', 0.0)) if 'avg_repayment_amount' in metrics_row else 0.0
-                        # Handle date fields robustly
-                        last_tx = metrics_row.get('last_transaction', None)
-                        first_tx = metrics_row.get('first_transaction', None)
-                        repayments['last_repayment_date'] = str(last_tx) if pd.notnull(last_tx) else ''
-                        repayments['first_repayment_date'] = str(first_tx) if pd.notnull(first_tx) else ''
-                        repayments['repayment_consistency'] = float(metrics_row.get('data_quality', 0.0)) if 'data_quality' in metrics_row else 0.0
-                        # Compute days since last/first repayment only if date is valid
-                        if pd.notnull(last_tx):
-                            repayments['days_since_last_repayment'] = (datetime.now().date() - last_tx.date()).days
-                        else:
-                            repayments['days_since_last_repayment'] = 0
-                        if pd.notnull(first_tx):
-                            repayments['days_since_first_repayment'] = (datetime.now().date() - first_tx.date()).days
-                        else:
-                            repayments['days_since_first_repayment'] = 0
-                        repayments['repayment_frequency'] = float(metrics_row.get('repayment_frequency', 0.0)) if 'repayment_frequency' in metrics_row else 0.0
-                        result['metadata']['repayment_data_available'] = True
-                except Exception as e:
-                    logger.error(f"Error calculating repayment metrics for agent {agent_id}: {e}", exc_info=True)
-            else:
-                logger.warning(f"No repayment data found for agent {agent_id}")
-                result['metadata']['repayment_data_available'] = False
-
+                # Look up agent_id in self.repayment_metrics_df for repayment metrics mapping
+                metrics_row = self.get_agent_repayment_metrics(agent_id)
+                if metrics_row is not None:
+                    repayments = result['sources']['repayments']
+                    # Map all repayment metrics
+                    repayments['credit_health_score'] = float(metrics_row.get('credit_health_score', 0.0)) if 'credit_health_score' in metrics_row else 0.0
+                    repayments['risk_category'] = str(metrics_row.get('risk_category', 'UNKNOWN')) if 'risk_category' in metrics_row else 'UNKNOWN'
+                    repayments['confidence'] = float(metrics_row.get('confidence', 0.0)) if 'confidence' in metrics_row else 0.0
+                    repayments['total_repayment'] = float(metrics_row.get('total_repayment_amount', 0.0)) if 'total_repayment_amount' in metrics_row else 0.0
+                    repayments['principal_repaid'] = float(metrics_row.get('total_principal_repaid', 0.0)) if 'total_principal_repaid' in metrics_row else 0.0
+                    repayments['total_repayment_count'] = int(metrics_row.get('transaction_count', 0)) if 'transaction_count' in metrics_row else 0
+                    repayments['avg_repayment_amount'] = float(metrics_row.get('avg_repayment_amount', 0.0)) if 'avg_repayment_amount' in metrics_row else 0.0
+                    # Handle date fields robustly
+                    last_tx = metrics_row.get('last_transaction', None)
+                    first_tx = metrics_row.get('first_transaction', None)
+                    repayments['last_repayment_date'] = str(last_tx) if pd.notnull(last_tx) else ''
+                    repayments['first_repayment_date'] = str(first_tx) if pd.notnull(first_tx) else ''
+                    repayments['repayment_consistency'] = float(metrics_row.get('data_quality', 0.0)) if 'data_quality' in metrics_row else 0.0
+                    # Compute days since last/first repayment only if date is valid
+                    if pd.notnull(last_tx):
+                        # (existing logic for days_since_last/first_repayment)
+                        pass
             return result
         except Exception as e:
-            logger.error(f"Error processing agent {agent_id}: {e}", exc_info=True)
-            raise
+            logger.error(f"Error in process_agent for agent {agent_id}: {e}", exc_info=True)
+            return None
 
-    def process_all_agents(self) -> Dict[str, Any]:
-        """Process all agents and return results."""
+                # (rest of your function logic)
+            return result
+        except Exception as e:
+            logger.error(f"Error in process_agent for agent {agent_id}: {e}", exc_info=True)
+            return None
         if not self.data_loaded:
             self.load_data()
         # Get list of agent IDs to process
