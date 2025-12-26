@@ -4,6 +4,22 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
+## Business Context & Impact
+
+This system was built to support internal credit and operations teams in
+identifying risk patterns, prioritizing agent follow-ups, and improving
+credit portfolio visibility at scale.
+
+The analysis framework enables:
+- Early identification of high-risk agents
+- Region-wise credit health monitoring
+- Data-backed decisions for credit enablement, throttling, and recovery actions
+- Faster reporting cycles with standardized outputs for ops and leadership reviews
+
+The tool was designed for operational use, not experimentation, and focuses
+on explainability, repeatability, and decision support rather than black-box scoring.
+
+
 A comprehensive credit risk analysis system for monitoring and classifying credit agents based on transaction history, repayment behavior, and sales performance.
 
 ## 🚀 Key Features
